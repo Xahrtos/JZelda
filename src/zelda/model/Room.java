@@ -7,7 +7,11 @@ public class Room {
     public static final int COLS = 16;
     public static final int ROWS = 11;
 
-    // 0 = floor, 1 = wall
+    // Tile types
+    public static final int TILE_FLOOR = 0;
+    public static final int TILE_SOLID = 1;     // collide, no occlusion layer
+    public static final int TILE_OCCLUDER = 2;  // collide + foreground occlusion strip
+
     private final int[][] tiles = new int[ROWS][COLS];
 
     // ---- Shop NPC (semplice) ----
@@ -26,7 +30,12 @@ public class Room {
 
     public boolean isSolidTile(int x, int y) {
         if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return true;
-        return tiles[y][x] == 1;
+        return tiles[y][x] != TILE_FLOOR; // SOLID e OCCLUDER bloccano
+    }
+
+    public boolean isOccluderTile(int x, int y) {
+        if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return false;
+        return tiles[y][x] == TILE_OCCLUDER;
     }
 
     // ---- NPC API ----

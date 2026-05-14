@@ -6,11 +6,13 @@ import zelda.model.SlideDir;
 import zelda.profile.LeaderboardEntry;
 import zelda.profile.ProfileStore;
 
+import java.awt.Rectangle;
 import java.time.Instant;
 
 /**
  * Controller (MVC):
  * - WASD + collisioni tile-based
+ * - Collisione con NPC (merchant)
  * - Transizioni:
  *   - D: (0..6)->(1..7) con slide LEFT (orizzontale)
  *   - A: (1..7)->(0..6) con slide RIGHT (orizzontale)
@@ -25,6 +27,7 @@ public class GameController {
 
     private final float speed = 200f;
 
+    // Hitbox player (in pixel, coordinate stanza)
     private static final int HIT_W = 20;
     private static final int HIT_H = 20;
 
@@ -56,6 +59,7 @@ public class GameController {
         if (left) vx -= speed;
         if (right) vx += speed;
 
+        // collisione asse-per-asse (buona per scorrere lungo gli ostacoli)
         moveWithCollision(vx * dt, 0);
         moveWithCollision(0, vy * dt);
 
@@ -66,20 +70,42 @@ public class GameController {
         float nextX = model.getPlayerX() + dx;
         float nextY = model.getPlayerY() + dy;
 
+        // 1) collisione tile-based (come prima)
         float leftEdge = nextX;
         float rightEdge = nextX + HIT_W - 1;
         float topEdge = nextY;
         float bottomEdge = nextY + HIT_H - 1;
 
-        boolean collides =
+        boolean collidesTiles =
                 collidesAt(leftEdge, topEdge) ||
                 collidesAt(rightEdge, topEdge) ||
                 collidesAt(leftEdge, bottomEdge) ||
                 collidesAt(rightEdge, bottomEdge);
 
-        if (!collides) {
-            model.movePlayerTo(nextX, nextY);
-        }
+        if (collidesTiles) return;
+
+        // 2) collisione con NPC (merchant)
+        if (collidesNpc(nextX, nextY)) return;
+
+        // ok, possiamo muovere
+        model.movePlayerTo(nextX, nextY);
+    }
+
+    private boolean collidesNpc(float nextX, float nextY) {
+        Room room = model.getRoom();
+        if (!room.hasNpc()) return false;
+
+        Rectangle npc = room.getNpcBounds();
+        if (npc == null) return false;
+
+        Rectangle playerRect = new Rectangle(
+                Math.round(nextX),
+                Math.round(nextY),
+                HIT_W,
+                HIT_H
+        );
+
+        return playerRect.intersects(npc);
     }
 
     private boolean collidesAt(float px, float py) {
