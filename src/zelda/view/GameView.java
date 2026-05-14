@@ -1,160 +1,204 @@
 package zelda.view;
 
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import javax.swing.*;
+
 import zelda.model.GameModel;
-import javax.swing.ImageIcon;
 import zelda.model.Room;
 import zelda.model.SlideDir;
 import zelda.root.Assets;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.Image;
-
-/**
- * View (MVC): disegna HUD + stanza NES (16x11 tile) e gestisce la slide
- * tra stanze disegnando "current room" e "next room" contemporaneamente.
- *
- * Nota: la logica di "quando cambiare stanza" è nel Controller/Model.
- * Qui ci occupiamo solo della parte grafica (render + animazione slide).
- */
-public class GameView {
+public class GameView extends JPanel implements zelda.model.GameEventListener {
 
     private final GameModel model;
 
-    // Stato interno animazione slide (View)
     private boolean sliding = false;
-    private float slideT = 0f; // 0..1
-    private static final float SLIDE_DURATION = 2.00f; // secondi
+    private float slideT = 0f;
+
+    // più basso = più veloce
+    private static final float SLIDE_DURATION = 0.80f;
+
+    // ---- PLAYER ZOOM ----
+    // 1 = normale, 2 = x2, 3 = x3 ...
+    private static final int PLAYER_ZOOM = 2;
 
     public GameView(GameModel model) {
         this.model = model;
+        setBackground(Color.BLACK);
+        setFocusable(true);
+        model.addListener(this);
     }
 
-    /**
-     * Render con dt (delta time) per avanzare l'animazione slide.
-     */
-    public void render(Graphics2D g, int screenW, int screenH, float dt) {
-        // 1) Clear schermo
-        g.setColor(Color.BLACK);
-        g.fillRect(0, 0, screenW, screenH);
-
-        // 2) HUD (sopra)
-        renderHud(g, screenW);
-
-        // 3) Playfield (stanza) sotto HUD
-        int offsetY = GameModel.HUD_HEIGHT;
-
-        // Dimensione stanza in pixel (stile NES: 16x11 tile)
-        int roomPixelW = Room.COLS * GameModel.TILE_SIZE; // 512
-        int roomPixelH = Room.ROWS * GameModel.TILE_SIZE; // 352
-
-        // Centriamo orizzontalmente (come “schermata NES” dentro finestra 800x600)
-        int baseX = (screenW - roomPixelW) / 2;
-
-        // 4) Se il model è in transizione e noi non abbiamo ancora avviato l'animazione, partiamo
-        if (model.isTransitioning() && !sliding) {
-            sliding = true;
-            slideT = 0f;
+    @Override
+    public void onGameEvent(zelda.model.GameEvent event) {
+        if (event.type() == zelda.model.GameEventType.ROOM_CHANGED) {
+            if (model.isTransitioning()) {
+                sliding = true;
+                slideT = 0f;
+            }
+            repaint();
+            return;
         }
 
-        // 5) Avanza l'animazione se stiamo slidando
+        if (event.type() == zelda.model.GameEventType.PLAYER_MOVED ||
+            event.type() == zelda.model.GameEventType.HUD_CHANGED) {
+            repaint();
+        }
+    }
+
+    public void tick(float dt) {
         if (sliding) {
             slideT += dt / SLIDE_DURATION;
 
-            // Quando raggiunge 1, la slide è finita: chiediamo al Model di "finalizzare" il cambio stanza
             if (slideT >= 1f) {
                 slideT = 1f;
                 sliding = false;
                 model.finishRoomTransition();
             }
+            repaint();
         }
+    }
 
-        // 6) Calcoliamo di quanti pixel stiamo scorrendo (0..roomPixelW)
-        int slidePx = Math.round(roomPixelW * slideT);
+    @Override
+    protected void paintComponent(Graphics g0) {
+        super.paintComponent(g0);
 
-        // 7) Decidiamo dove disegnare stanza corrente e prossima
-        int currX = baseX;
-        int nextX = baseX;
+        Graphics2D g = (Graphics2D) g0.create();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
 
-        boolean drawTwoRooms = model.isTransitioning() || sliding;
+            int screenW = getWidth();
 
-        if (drawTwoRooms) {
-            SlideDir dir = model.getSlideDir();
+            renderHud(g, screenW);
 
-            // LEFT: la nuova stanza entra da destra, quella corrente esce a sinistra
-            if (dir == SlideDir.LEFT) {
-                currX = baseX - slidePx;
-                nextX = baseX + roomPixelW - slidePx;
-            } else { // RIGHT: nuova entra da sinistra
-                currX = baseX + slidePx;
-                nextX = baseX - roomPixelW + slidePx;
+            int offsetY = GameModel.HUD_HEIGHT;
+
+            int roomPixelW = Room.COLS * GameModel.TILE_SIZE;
+            int roomPixelH = Room.ROWS * GameModel.TILE_SIZE;
+
+            int baseX = (screenW - roomPixelW) / 2;
+            int baseY = offsetY;
+
+            boolean drawTwoRooms = model.isTransitioning() || sliding;
+
+            int currX = baseX, currY = baseY;
+            int nextX = baseX, nextY = baseY;
+
+            if (drawTwoRooms) {
+                SlideDir dir = model.getSlideDir();
+
+                if (dir == SlideDir.LEFT || dir == SlideDir.RIGHT) {
+                    int slidePx = Math.round(roomPixelW * slideT);
+                    if (dir == SlideDir.LEFT) {
+                        currX = baseX - slidePx;
+                        nextX = baseX + roomPixelW - slidePx;
+                    } else { // RIGHT
+                        currX = baseX + slidePx;
+                        nextX = baseX - roomPixelW + slidePx;
+                    }
+                } else {
+                    int slidePx = Math.round(roomPixelH * slideT);
+                    if (dir == SlideDir.UP) {
+                        currY = baseY - slidePx;
+                        nextY = baseY + roomPixelH - slidePx;
+                    } else { // DOWN
+                        currY = baseY + slidePx;
+                        nextY = baseY - roomPixelH + slidePx;
+                    }
+                }
+
+                renderRoom(g, model.getRoom(), currX, currY);
+                renderRoom(g, model.getNextRoom(), nextX, nextY);
+            } else {
+                renderRoom(g, model.getRoom(), baseX, baseY);
             }
 
-            renderRoom(g, model.getRoom(), currX, offsetY);
-            renderRoom(g, model.getNextRoom(), nextX, offsetY);
-        } else {
-            renderRoom(g, model.getRoom(), baseX, offsetY);
+            // ---- PLAYER ----
+            float px = model.getPlayerX();
+            float py = model.getPlayerY();
+
+            // Per ora sempre idle down
+            BufferedImage sprite = Assets.playerIdle[0];
+
+            int sw = sprite.getWidth();   // es. 18
+            int sh = sprite.getHeight();  // es. 22
+
+            int drawW = sw * PLAYER_ZOOM;
+            int drawH = sh * PLAYER_ZOOM;
+
+            int playerBaseX = drawTwoRooms ? nextX : baseX;
+            int playerBaseY = drawTwoRooms ? nextY : baseY;
+
+            // Centra orizzontalmente rispetto alla tile e appoggia i "piedi" a fondo tile
+            int drawX = playerBaseX + Math.round(px) + (GameModel.TILE_SIZE - drawW) / 2;
+            int drawY = playerBaseY + Math.round(py) + GameModel.TILE_SIZE - drawH;
+
+            g.drawImage(sprite, drawX, drawY, drawW, drawH, null);
+
+            // bordo playfield (debug)
+            g.setColor(new Color(255, 255, 255, 40));
+            g.drawRect(baseX, baseY, roomPixelW, roomPixelH);
+
+        } finally {
+            g.dispose();
         }
-
-        // 8) Player: per semplicità lo disegniamo nella stanza "target" durante transizione,
-        //    altrimenti nella stanza corrente.
-        float px = model.getPlayerX();
-        float py = model.getPlayerY();
-
-        int drawW = 32;
-        int drawH = 32;
-
-        Image img = Assets.player;
-
-        int playerBaseX = (model.isTransitioning() || sliding) ? nextX : baseX;
-
-        g.drawImage(img,
-                playerBaseX + Math.round(px),
-                offsetY + Math.round(py),
-                drawW, drawH, null);
-
-        // (opzionale) bordo playfield per debug
-        g.setColor(new Color(255, 255, 255, 40));
-        g.drawRect(baseX, offsetY, roomPixelW, roomPixelH);
     }
 
     private void renderHud(Graphics2D g, int screenW) {
         g.setColor(new Color(20, 20, 20));
         g.fillRect(0, 0, screenW, GameModel.HUD_HEIGHT);
-        g.drawString("Player: " + model.getProfileNickname(), 10, 40);
-        String ap = model.getProfileAvatarPath();
-        if (ap != null && !ap.isBlank()) {
-            ImageIcon ico = new ImageIcon(ap);
-            Image img = ico.getImage().getScaledInstance(48, 48, Image.SCALE_SMOOTH);
-            g.drawImage(img, screenW - 60, 8, null);
-        }
+
         g.setColor(Color.WHITE);
-        g.drawString("Lives: " + model.getLives(), 10, 20);
-        g.drawString("Rupees: " + model.getRupees(), 110, 20);
-        g.drawString("Score: " + model.getScore(), 230, 20);
-        g.drawString("Room: " + (model.getCurrentRoomIndex() + 1) + "/" + model.getRoomsCount(), 340, 20);
+        g.drawString("Player: " + model.getProfileNickname(), 10, 22);
+        g.drawString("Vite: " + model.getLives() + "  Rupie: " + model.getRupees() + "  Score: " + model.getScore(), 10, 44);
     }
 
-    /**
-     * Disegna una stanza in offsetX/offsetY.
-     * Per ora usa colori “placeholder” (floor/muro). Poi sostituiremo con tiles grafici.
-     */
-    private void renderRoom(Graphics2D g, Room r, int offsetX, int offsetY) {
+    private void renderRoom(Graphics2D g, Room room, int ox, int oy) {
         for (int y = 0; y < Room.ROWS; y++) {
             for (int x = 0; x < Room.COLS; x++) {
-                int v = r.getTile(x, y);
+                int t = room.getTile(x, y);
+                g.setColor(t == 1 ? Color.DARK_GRAY : new Color(20, 80, 20));
 
-                if (v == 1) g.setColor(Color.DARK_GRAY);
-                else g.setColor(new Color(20, 80, 20));
-
-                int px = offsetX + x * GameModel.TILE_SIZE;
-                int py = offsetY + y * GameModel.TILE_SIZE;
+                int px = ox + x * GameModel.TILE_SIZE;
+                int py = oy + y * GameModel.TILE_SIZE;
 
                 g.fillRect(px, py, GameModel.TILE_SIZE, GameModel.TILE_SIZE);
 
-                // griglia leggera (debug)
                 g.setColor(new Color(0, 0, 0, 40));
                 g.drawRect(px, py, GameModel.TILE_SIZE, GameModel.TILE_SIZE);
+            }
+        }
+
+        // ---- NPC Merchant ----
+        if (room.hasNpc()) {
+            var b = room.getNpcBounds();
+            int nx = ox + b.x;
+            int ny = oy + b.y;
+
+            
+
+            
+            if (Assets.merchant != null) {
+                int mw = Assets.merchant.getWidth();
+                int mh = Assets.merchant.getHeight();
+
+                // Se vuoi anche lo zoom del merchant:
+                int merchantZoom = 1; // metti 2 se lo vuoi più grande
+                int drawW = mw * merchantZoom;
+                int drawH = mh * merchantZoom;
+
+                int sx = nx + (b.width - drawW) / 2;
+                int sy = ny + (b.height - drawH) / 2;
+
+                g.drawImage(Assets.merchant, sx, sy, drawW, drawH, null);
+            } else {
+                // fallback
+                g.setColor(new Color(200, 180, 60));
+                g.fillRect(nx, ny, b.width, b.height);
+                g.setColor(Color.BLACK);
+                g.drawRect(nx, ny, b.width, b.height);
             }
         }
     }

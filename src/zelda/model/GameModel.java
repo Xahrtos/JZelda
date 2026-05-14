@@ -16,9 +16,10 @@ public class GameModel extends ObservableModel {
     public static final int TILE_SIZE = 32;
     public static final int HUD_HEIGHT = 64;
 
-    // Stanze
+    // Stanze#
+    int start = 8;
     private final RoomManager roomManager = new RoomManager();
-    private int currentRoomIndex = 0;
+    private int currentRoomIndex = start;
 
     // Transizione slide
     private boolean transitioning = false;

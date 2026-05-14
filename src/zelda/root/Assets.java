@@ -1,46 +1,48 @@
 package zelda.root;
 
 import javax.imageio.ImageIO;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 
-
 public class Assets {
 
-	public static final int DIR_DOWN = 0;
-	public static final int DIR_LEFT = 1;
-	public static final int DIR_RIGHT = 2;
-	public static final int DIR_UP = 3;
+    // ---- PLAYER (rimane come hai ora) ----
+    public static final int PLAYER_FRAME_W = 18;
+    public static final int PLAYER_FRAME_H = 22;
+    public static final int PLAYER_DIRECTIONS = 4;
+    public static final int PLAYER_WALK_FRAMES = 4;
 
-    // PROVA: frame 32x32
-    public static final int FRAME_W = 32;
-    public static final int FRAME_H = 32;
+    public static BufferedImage playerSheet;
+    public static BufferedImage[] playerIdle = new BufferedImage[PLAYER_DIRECTIONS];
+    public static BufferedImage[][] playerWalk = new BufferedImage[PLAYER_DIRECTIONS][PLAYER_WALK_FRAMES];
 
-    public static BufferedImage player;
-    public static BufferedImage sheet;
+    // ---- MERCHANT (PNG singolo ~60x60) ----
+    public static BufferedImage merchant;
 
     public static void load() {
-        sheet = loadImage("sprites/player_sheet.png");
+        // Player
+        playerSheet = loadImage("sprites/player_sheet.png");
+        for (int dir = 0; dir < PLAYER_DIRECTIONS; dir++) {
+            playerIdle[dir] = playerSheet.getSubimage(dir * PLAYER_FRAME_W, 0, PLAYER_FRAME_W, PLAYER_FRAME_H);
+        }
+        for (int frame = 0; frame < PLAYER_WALK_FRAMES; frame++) {
+            playerWalk[0][frame] = playerSheet.getSubimage(frame * PLAYER_FRAME_W, 1 * PLAYER_FRAME_H, PLAYER_FRAME_W, PLAYER_FRAME_H);
+            playerWalk[1][frame] = playerSheet.getSubimage(frame * PLAYER_FRAME_W, 2 * PLAYER_FRAME_H, PLAYER_FRAME_W, PLAYER_FRAME_H);
+            playerWalk[2][frame] = playerSheet.getSubimage(frame * PLAYER_FRAME_W, 3 * PLAYER_FRAME_H, PLAYER_FRAME_W, PLAYER_FRAME_H);
+            playerWalk[3][frame] = playerSheet.getSubimage(frame * PLAYER_FRAME_W, 4 * PLAYER_FRAME_H, PLAYER_FRAME_W, PLAYER_FRAME_H);
+        }
 
-        final int baseX = 0; // colonna frame dove inizia la riga del player
-        final int baseY = 0; // riga frame dove sta il player
+        // Merchant: PNG singolo
+        BufferedImage raw = loadImage("sprites/merchant.png");
 
-        // per ora mettiamo tutti uguali; poi li cambiamo quando identifichiamo i frame esatti
-        player = frame(sheet, baseX, baseY);
-
-        playerIdle[DIR_DOWN] = player;
-        playerIdle[DIR_LEFT] = player;
-        playerIdle[DIR_RIGHT] = player;
-        playerIdle[DIR_UP] = player;
+        // Se il merchant ha background non trasparente, rimuovilo con color key.
+        // Qui metto un colore "placeholder" (magenta puro) — dimmi il colore di sfondo reale e lo settiamo.
+        // Se il PNG è già trasparente, questa operazione non fa danni.
+        merchant = raw;
     }
 
-    public static BufferedImage[] playerIdle = new BufferedImage[4];
-    
-    public static BufferedImage frame(BufferedImage sheet, int frameX, int frameY) {
-        return sheet.getSubimage(frameX * FRAME_W, frameY * FRAME_H, FRAME_W, FRAME_H);
-    }
-
-    private static BufferedImage loadImage(String pathInsideAssets) {
+    public static BufferedImage loadImage(String pathInsideAssets) {
         String fullPath = "/" + pathInsideAssets;
         try {
             var url = Assets.class.getResource(fullPath);
@@ -55,4 +57,7 @@ public class Assets {
             throw new RuntimeException("Errore caricando immagine: " + fullPath, e);
         }
     }
+
+    
+    
 }
