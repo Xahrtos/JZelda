@@ -1,45 +1,76 @@
 package zelda.root;
 
 import javax.imageio.ImageIO;
-import java.awt.*;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 
 public class Assets {
 
-    // ---- PLAYER (rimane come hai ora) ----
-    public static final int PLAYER_FRAME_W = 18;
-    public static final int PLAYER_FRAME_H = 22;
-    public static final int PLAYER_DIRECTIONS = 4;
-    public static final int PLAYER_WALK_FRAMES = 4;
+    // 0=DOWN, 1=UP, 2=LEFT, 3=RIGHT
+    public static final int DIR_DOWN = 0;
+    public static final int DIR_UP = 1;
+    public static final int DIR_LEFT = 2;
+    public static final int DIR_RIGHT = 3;
 
-    public static BufferedImage playerSheet;
+    public static final int PLAYER_DIRECTIONS = 4;
+    public static final int PLAYER_WALK_FRAMES = 2;
+
     public static BufferedImage[] playerIdle = new BufferedImage[PLAYER_DIRECTIONS];
     public static BufferedImage[][] playerWalk = new BufferedImage[PLAYER_DIRECTIONS][PLAYER_WALK_FRAMES];
 
-    // ---- MERCHANT (PNG singolo ~60x60) ----
     public static BufferedImage merchant;
 
     public static void load() {
-        // Player
-        playerSheet = loadImage("sprites/player_sheet.png");
-        for (int dir = 0; dir < PLAYER_DIRECTIONS; dir++) {
-            playerIdle[dir] = playerSheet.getSubimage(dir * PLAYER_FRAME_W, 0, PLAYER_FRAME_W, PLAYER_FRAME_H);
-        }
-        for (int frame = 0; frame < PLAYER_WALK_FRAMES; frame++) {
-            playerWalk[0][frame] = playerSheet.getSubimage(frame * PLAYER_FRAME_W, 1 * PLAYER_FRAME_H, PLAYER_FRAME_W, PLAYER_FRAME_H);
-            playerWalk[1][frame] = playerSheet.getSubimage(frame * PLAYER_FRAME_W, 2 * PLAYER_FRAME_H, PLAYER_FRAME_W, PLAYER_FRAME_H);
-            playerWalk[2][frame] = playerSheet.getSubimage(frame * PLAYER_FRAME_W, 3 * PLAYER_FRAME_H, PLAYER_FRAME_W, PLAYER_FRAME_H);
-            playerWalk[3][frame] = playerSheet.getSubimage(frame * PLAYER_FRAME_W, 4 * PLAYER_FRAME_H, PLAYER_FRAME_W, PLAYER_FRAME_H);
-        }
+        // ---- IDLE ----
+        BufferedImage idleDown = loadImage("sprites/idle_down.png");
+        BufferedImage idleUp = loadImage("sprites/idle_up.png");
+        BufferedImage idleLR = loadImage("sprites/idle_leftright.png"); // BASE = LEFT (come richiesto)
 
-        // Merchant: PNG singolo
-        BufferedImage raw = loadImage("sprites/merchant.png");
+        playerIdle[DIR_DOWN] = idleDown;
+        playerIdle[DIR_UP] = idleUp;
 
-        // Se il merchant ha background non trasparente, rimuovilo con color key.
-        // Qui metto un colore "placeholder" (magenta puro) — dimmi il colore di sfondo reale e lo settiamo.
-        // Se il PNG è già trasparente, questa operazione non fa danni.
-        merchant = raw;
+        // INVERTITO: file -> LEFT, mirror -> RIGHT
+        playerIdle[DIR_LEFT] = idleLR;
+        playerIdle[DIR_RIGHT] = mirrorHorizontally(idleLR);
+
+        // ---- WALK ----
+        playerWalk[DIR_DOWN][0] = loadImage("sprites/move_down1.png");
+        playerWalk[DIR_DOWN][1] = loadImage("sprites/move_down2.png");
+
+        playerWalk[DIR_UP][0] = loadImage("sprites/move_up1.png");
+        playerWalk[DIR_UP][1] = loadImage("sprites/move_up2.png");
+
+        // BASE = LEFT (come richiesto), mirror -> RIGHT
+        BufferedImage moveL1 = loadImage("sprites/move_leftright1.png");
+        BufferedImage moveL2 = loadImage("sprites/move_leftright2.png");
+
+        playerWalk[DIR_LEFT][0] = moveL1;
+        playerWalk[DIR_LEFT][1] = moveL2;
+
+        playerWalk[DIR_RIGHT][0] = mirrorHorizontally(moveL1);
+        playerWalk[DIR_RIGHT][1] = mirrorHorizontally(moveL2);
+
+        // ---- MERCHANT ----
+        merchant = loadImage("sprites/merchant.png");
+    }
+
+    private static BufferedImage mirrorHorizontally(BufferedImage src) {
+        BufferedImage dst = new BufferedImage(src.getWidth(), src.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = dst.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+
+            AffineTransform at = new AffineTransform();
+            at.scale(-1, 1);
+            at.translate(-src.getWidth(), 0);
+            g.drawImage(src, at, null);
+        } finally {
+            g.dispose();
+        }
+        return dst;
     }
 
     public static BufferedImage loadImage(String pathInsideAssets) {
@@ -52,12 +83,22 @@ public class Assets {
                         "Controlla che il file sia in src/assets/sprites/ e che src/assets sia Source Folder."
                 );
             }
-            return ImageIO.read(url);
+
+            BufferedImage raw = ImageIO.read(url);
+            if (raw == null) throw new RuntimeException("Immagine non leggibile: " + fullPath);
+
+            BufferedImage argb = new BufferedImage(raw.getWidth(), raw.getHeight(), BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = argb.createGraphics();
+            try {
+                g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+                g.drawImage(raw, 0, 0, null);
+            } finally {
+                g.dispose();
+            }
+            return argb;
+
         } catch (IOException e) {
             throw new RuntimeException("Errore caricando immagine: " + fullPath, e);
         }
     }
-
-    
-    
 }

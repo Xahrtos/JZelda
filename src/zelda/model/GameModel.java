@@ -5,7 +5,7 @@ package zelda.model;
  * Contiene:
  * - HUD (vite, rupie, score + profilo attivo)
  * - Player position (in pixel dentro la stanza)
- * - Gestione stanze (8 stanze lineari)
+ * - Gestione stanze (8 stanze lineari + shop)
  * - Stato di transizione (slide) tra stanze
  *
  * Nota: TILE_SIZE=32, HUD sopra (HUD_HEIGHT=64).
@@ -38,6 +38,31 @@ public class GameModel extends ObservableModel {
     // HUD: profilo attivo
     private String profileNickname = "Player";
     private String profileAvatarPath = "";
+    private String profileId = "";
+
+    // ---- SHOP / UI ----
+    private boolean showInteractPrompt = false;
+
+    private boolean shopOpen = false;
+    private int shopSelectionIndex = 0; // 0..3 (3 = Exit)
+
+    // ---- ANIMAZIONE PLAYER ----
+    public enum Facing { DOWN, UP, LEFT, RIGHT }
+
+    private Facing facing = Facing.DOWN;
+    private boolean moving = false;
+
+    // 0..1 (perché hai 2 frame di camminata)
+    private int animFrame = 0;
+
+    public Facing getFacing() { return facing; }
+    public void setFacing(Facing f) { this.facing = f; }
+
+    public boolean isMoving() { return moving; }
+    public void setMoving(boolean v) { this.moving = v; }
+
+    public int getAnimFrame() { return animFrame; }
+    public void setAnimFrame(int f) { this.animFrame = f; }
 
     // ---- ROOM API ----
 
@@ -68,12 +93,7 @@ public class GameModel extends ObservableModel {
     public SlideDir getSlideDir() {
         return slideDir;
     }
-    private String profileId = "";
 
-    public String getProfileId() {
-        return profileId;
-    }
-    
     public int getNextRoomIndex() {
         return nextRoomIndex;
     }
@@ -141,11 +161,18 @@ public class GameModel extends ObservableModel {
 
     public void addRupees(int amount) {
         rupees += amount;
+        if (rupees < 0) rupees = 0;
         fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
     }
 
     public void addScore(int amount) {
         score += amount;
+        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
+    }
+
+    public void addLives(int amount) {
+        lives += amount;
+        if (lives < 0) lives = 0;
         fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
     }
 
@@ -165,6 +192,10 @@ public class GameModel extends ObservableModel {
         return profileAvatarPath;
     }
 
+    public String getProfileId() {
+        return profileId;
+    }
+
     /**
      * Imposta i dati del profilo attivo (mostrati nell'HUD).
      * Chiamato tipicamente da GamePanel quando premi "Gioca" dopo selezione profilo.
@@ -177,7 +208,7 @@ public class GameModel extends ObservableModel {
     }
 
     /**
-     * Reset minimale run (utile per "nuova partita"/"continua" più avanti).
+     * Reset minimale run.
      * NON tocca il profilo attivo: quello resta selezionato.
      */
     public void resetRun() {
@@ -193,8 +224,57 @@ public class GameModel extends ObservableModel {
         rupees = 0;
         score = 0;
 
+        shopOpen = false;
+        shopSelectionIndex = 0;
+        showInteractPrompt = false;
+
+        // reset animazione
+        facing = Facing.DOWN;
+        moving = false;
+        animFrame = 0;
+
         fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
         fireEvent(new GameEvent(GameEventType.ROOM_CHANGED));
         fireEvent(new GameEvent(GameEventType.PLAYER_MOVED));
+    }
+
+    // ---- UI / SHOP API ----
+
+    public boolean isShowInteractPrompt() {
+        return showInteractPrompt;
+    }
+
+    public void setShowInteractPrompt(boolean v) {
+        if (showInteractPrompt == v) return;
+        showInteractPrompt = v;
+        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
+    }
+
+    public boolean isShopOpen() {
+        return shopOpen;
+    }
+
+    public int getShopSelectionIndex() {
+        return shopSelectionIndex;
+    }
+
+    public void setShopSelectionIndex(int idx) {
+        int clamped = Math.max(0, Math.min(idx, 3));
+        if (shopSelectionIndex == clamped) return;
+        shopSelectionIndex = clamped;
+        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
+    }
+
+    public void openShop() {
+        if (shopOpen) return;
+        shopOpen = true;
+        shopSelectionIndex = 0;
+        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
+    }
+
+    public void closeShop() {
+        if (!shopOpen) return;
+        shopOpen = false;
+        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
     }
 }

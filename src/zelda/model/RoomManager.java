@@ -90,7 +90,7 @@ public class RoomManager {
         // nello shop mettiamo un "bancone" (OCCLUDER) + NPC
         if (id == SHOP_INDEX) {
             int counterY = 4;
-            for (int x = 4; x <= 11; x++) r.setTile(x, counterY, Room.TILE_OCCLUDER);
+            for (int x = 4; x <= 11; x++) r.setTile(x, counterY, Room.TILE_SOLID);
 
             // NPC dietro il bancone (hitbox più piccola dello sprite)
             int npcW = 32;
