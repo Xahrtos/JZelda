@@ -55,6 +55,39 @@ public class GameModel extends ObservableModel {
     // 0..1 (perché hai 2 frame di camminata)
     private int animFrame = 0;
 
+    // ---- ATTACK STATE ----
+    private boolean attacking = false;
+    private int attackFrame = 0; // 0..1
+
+    // ---- ENEMY (semplice) ----
+    private boolean enemyAlive = true;
+    private int enemyHp = 3;
+
+    private float enemyX = 8 * TILE_SIZE;
+    private float enemyY = 4 * TILE_SIZE;
+
+    // movimento AI
+    private float enemyVx = 0f;
+    private float enemyVy = 0f;
+    private float enemyDirTimer = 0f;
+
+    // invuln / blink
+    private float enemyInvulnT = 0f;
+    private float enemyBlinkT = 0f;
+
+    // ---- RUPEE DROP ----
+    private boolean rupeeAlive = false;
+    private float rupeeX = 0f;
+    private float rupeeY = 0f;
+
+    // animazione hop
+    private boolean rupeeAnimating = false;
+    private float rupeeAnimT = 0f;
+    private float rupeeAnimDur = 0.28f;
+    private float rupeeHopHeight = 12f;
+    private float rupeeLandY = 0f;
+
+    // --- getters/setters anim player ---
     public Facing getFacing() { return facing; }
     public void setFacing(Facing f) { this.facing = f; }
 
@@ -64,14 +97,113 @@ public class GameModel extends ObservableModel {
     public int getAnimFrame() { return animFrame; }
     public void setAnimFrame(int f) { this.animFrame = f; }
 
+    public boolean isAttacking() { return attacking; }
+    public void setAttacking(boolean v) { this.attacking = v; }
+
+    public int getAttackFrame() { return attackFrame; }
+    public void setAttackFrame(int f) { this.attackFrame = f; }
+
+    /**
+     * Forza un repaint lato view anche se la posizione non cambia.
+     */
+    public void requestRepaint() {
+        fireEvent(new GameEvent(GameEventType.PLAYER_MOVED));
+    }
+
+    // --- enemy API ---
+    public boolean isEnemyAlive() { return enemyAlive; }
+    public int getEnemyHp() { return enemyHp; }
+
+    public float getEnemyX() { return enemyX; }
+    public float getEnemyY() { return enemyY; }
+    public void setEnemyPos(float x, float y) {
+        enemyX = x;
+        enemyY = y;
+        requestRepaint();
+    }
+
+    public float getEnemyVx() { return enemyVx; }
+    public float getEnemyVy() { return enemyVy; }
+    public void setEnemyVel(float vx, float vy) { enemyVx = vx; enemyVy = vy; }
+
+    public float getEnemyDirTimer() { return enemyDirTimer; }
+    public void setEnemyDirTimer(float t) { enemyDirTimer = t; }
+
+    public boolean isEnemyInvulnerable() { return enemyInvulnT > 0f; }
+    public boolean isEnemyBlinking() { return enemyBlinkT > 0f; }
+
+    public float getEnemyBlinkT() { return enemyBlinkT; }
+
+    public void updateEnemyTimers(float dt) {
+        if (enemyInvulnT > 0f) enemyInvulnT = Math.max(0f, enemyInvulnT - dt);
+        if (enemyBlinkT > 0f) enemyBlinkT = Math.max(0f, enemyBlinkT - dt);
+    }
+
+    public void hitEnemy(int dmg, float invulnSeconds, float blinkSeconds) {
+        if (!enemyAlive) return;
+        if (enemyInvulnT > 0f) return;
+
+        enemyHp = Math.max(0, enemyHp - dmg);
+        if (enemyHp == 0) enemyAlive = false;
+
+        enemyInvulnT = Math.max(enemyInvulnT, invulnSeconds);
+        enemyBlinkT = Math.max(enemyBlinkT, blinkSeconds);
+
+        requestRepaint();
+    }
+
+    // --- rupee API ---
+    public boolean isRupeeAlive() { return rupeeAlive; }
+    public float getRupeeX() { return rupeeX; }
+    public float getRupeeY() { return rupeeY; }
+    public boolean isRupeeAnimating() { return rupeeAnimating; }
+
+    public void spawnRupee(float x, float y) {
+        rupeeAlive = true;
+        rupeeX = x;
+        rupeeY = y;
+
+        rupeeAnimating = true;
+        rupeeAnimT = 0f;
+        rupeeAnimDur = 0.28f;
+        rupeeHopHeight = 12f;
+
+        rupeeLandY = y;
+
+        requestRepaint();
+    }
+
+    public void despawnRupee() {
+        rupeeAlive = false;
+        rupeeAnimating = false;
+        requestRepaint();
+    }
+
+    public void updateRupeeAnim(float dt) {
+        if (!rupeeAlive || !rupeeAnimating) return;
+
+        rupeeAnimT += dt;
+        float t = rupeeAnimT / rupeeAnimDur;
+        if (t >= 1f) {
+            t = 1f;
+            rupeeAnimating = false;
+            rupeeY = rupeeLandY;
+            requestRepaint();
+            return;
+        }
+
+        // parabola: y = land - 4h * t(1-t)
+        float arc = 4f * rupeeHopHeight * t * (1f - t);
+        rupeeY = rupeeLandY - arc;
+        requestRepaint();
+    }
+
     // ---- ROOM API ----
 
-    /** Stanza corrente (quella “ufficiale” durante gioco normale) */
     public Room getRoom() {
         return roomManager.getRoom(currentRoomIndex);
     }
 
-    /** Stanza target durante una transizione (quella che sta entrando) */
     public Room getNextRoom() {
         return roomManager.getRoom(nextRoomIndex);
     }
@@ -98,10 +230,6 @@ public class GameModel extends ObservableModel {
         return nextRoomIndex;
     }
 
-    /**
-     * Inizia transizione verso un'altra stanza.
-     * Non cambiamo subito currentRoomIndex: la View disegna current+next in slide.
-     */
     public void beginRoomTransition(int targetRoomIndex, SlideDir dir) {
         if (transitioning) return;
         if (targetRoomIndex < 0 || targetRoomIndex >= roomManager.count()) return;
@@ -113,15 +241,29 @@ public class GameModel extends ObservableModel {
         fireEvent(new GameEvent(GameEventType.ROOM_CHANGED));
     }
 
-    /**
-     * Conclude la transizione: la stanza corrente diventa quella target.
-     * Chiamato dalla View quando l'animazione slide arriva a fine.
-     */
     public void finishRoomTransition() {
         if (!transitioning) return;
 
         currentRoomIndex = nextRoomIndex;
         transitioning = false;
+
+        // respawn/reset quando entri nella room 7 (arena)
+        if (currentRoomIndex == RoomManager.PLAY_LAST_INDEX) {
+            // nemico
+            enemyAlive = true;
+            enemyHp = 3;
+            enemyX = 8 * TILE_SIZE;
+            enemyY = 4 * TILE_SIZE;
+            enemyVx = 0f;
+            enemyVy = 0f;
+            enemyDirTimer = 0f;
+            enemyInvulnT = 0f;
+            enemyBlinkT = 0f;
+
+            // drop reset
+            rupeeAlive = false;
+            rupeeAnimating = false;
+        }
 
         fireEvent(new GameEvent(GameEventType.ROOM_CHANGED));
     }
@@ -136,9 +278,6 @@ public class GameModel extends ObservableModel {
         return playerY;
     }
 
-    /**
-     * Sposta il player (chiamato dal Controller dopo collisioni).
-     */
     public void movePlayerTo(float x, float y) {
         this.playerX = x;
         this.playerY = y;
@@ -196,21 +335,32 @@ public class GameModel extends ObservableModel {
         return profileId;
     }
 
-    /**
-     * Imposta i dati del profilo attivo (mostrati nell'HUD).
-     * Chiamato tipicamente da GamePanel quando premi "Gioca" dopo selezione profilo.
-     */
     public void setActiveProfile(String id, String nickname, String avatarPath) {
         this.profileId = (id == null) ? "" : id.trim();
         this.profileNickname = (nickname == null || nickname.isBlank()) ? "Player" : nickname.trim();
         this.profileAvatarPath = (avatarPath == null) ? "" : avatarPath.trim();
         fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
     }
+ // ---- PLAYER DAMAGE / INVULN ----
+    private float playerInvulnT = 0f;
+    private float playerBlinkT = 0f;
 
-    /**
-     * Reset minimale run.
-     * NON tocca il profilo attivo: quello resta selezionato.
-     */
+    public boolean isPlayerInvulnerable() { return playerInvulnT > 0f; }
+    public boolean isPlayerBlinking() { return playerBlinkT > 0f; }
+    public float getPlayerBlinkT() { return playerBlinkT; }
+
+    public void updatePlayerTimers(float dt) {
+        if (playerInvulnT > 0f) playerInvulnT = Math.max(0f, playerInvulnT - dt);
+        if (playerBlinkT > 0f) playerBlinkT = Math.max(0f, playerBlinkT - dt);
+    }
+
+    public void hitPlayer(int dmg, float invulnSeconds, float blinkSeconds) {
+        if (playerInvulnT > 0f) return;
+        damagePlayer(dmg);
+        playerInvulnT = Math.max(playerInvulnT, invulnSeconds);
+        playerBlinkT = Math.max(playerBlinkT, blinkSeconds);
+        requestRepaint();
+    }
     public void resetRun() {
         currentRoomIndex = 0;
         transitioning = false;
@@ -223,15 +373,36 @@ public class GameModel extends ObservableModel {
         lives = 3;
         rupees = 0;
         score = 0;
+        
+        playerInvulnT = 0f;
+        playerBlinkT = 0f;
 
         shopOpen = false;
         shopSelectionIndex = 0;
         showInteractPrompt = false;
 
-        // reset animazione
+        // reset animazioni player
         facing = Facing.DOWN;
         moving = false;
         animFrame = 0;
+
+        attacking = false;
+        attackFrame = 0;
+
+        // reset enemy
+        enemyAlive = true;
+        enemyHp = 3;
+        enemyX = 8 * TILE_SIZE;
+        enemyY = 4 * TILE_SIZE;
+        enemyVx = 0f;
+        enemyVy = 0f;
+        enemyDirTimer = 0f;
+        enemyInvulnT = 0f;
+        enemyBlinkT = 0f;
+
+        // reset drop
+        rupeeAlive = false;
+        rupeeAnimating = false;
 
         fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
         fireEvent(new GameEvent(GameEventType.ROOM_CHANGED));

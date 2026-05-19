@@ -19,6 +19,10 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
     private static final float SLIDE_DURATION = 0.80f;
     private static final int PLAYER_ZOOM = 2;
 
+    // ---- ENEMY RENDER ----
+    private static final int ENEMY_ROOM_INDEX = 7;
+    private static final float ENEMY_SCALE = 0.5f; // 56x58 -> 28x29
+
     public GameView(GameModel model) {
         this.model = model;
         setBackground(Color.BLACK);
@@ -38,7 +42,8 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         }
 
         if (event.type() == zelda.model.GameEventType.PLAYER_MOVED ||
-            event.type() == zelda.model.GameEventType.HUD_CHANGED) {
+            event.type() == zelda.model.GameEventType.HUD_CHANGED ||
+            event.type() == zelda.model.GameEventType.GAME_OVER) {
             repaint();
         }
     }
@@ -81,7 +86,6 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
             int currX = baseX, currY = baseY;
             int nextX = baseX, nextY = baseY;
 
-            // Calcolo posizioni stanze durante slide
             if (drawTwoRooms) {
                 SlideDir dir = model.getSlideDir();
 
@@ -106,7 +110,7 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
                 }
             }
 
-            // ---- 1) FLOOR LAYER (tile==0) ----
+            // ---- 1) FLOOR LAYER ----
             if (drawTwoRooms) {
                 renderRoomFloor(g, model.getRoom(), currX, currY);
                 renderRoomFloor(g, model.getNextRoom(), nextX, nextY);
@@ -114,7 +118,7 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
                 renderRoomFloor(g, model.getRoom(), baseX, baseY);
             }
 
-            // ---- 2) ENTITIES (player + npc) ----
+            // ---- 2) ENTITIES ----
             int roomX = drawTwoRooms ? nextX : baseX;
             int roomY = drawTwoRooms ? nextY : baseY;
             Room roomForEntities = drawTwoRooms ? model.getNextRoom() : model.getRoom();
@@ -122,15 +126,33 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
             float px = model.getPlayerX();
             float py = model.getPlayerY();
 
+            int pDrawX = roomX + Math.round(px);
+            int pDrawY = roomY + Math.round(py);
+
+            // player sprite normal
             BufferedImage playerSprite = getPlayerSprite();
+
+            // dimensioni draw del player (in base allo sprite scelto)
             int sw = playerSprite.getWidth();
             int sh = playerSprite.getHeight();
-
             int pDrawW = sw * PLAYER_ZOOM;
             int pDrawH = sh * PLAYER_ZOOM;
 
-            int pDrawX = roomX + Math.round(px);
-            int pDrawY = roomY + Math.round(py);
+            // se game over, sostituisci sprite con death (24x15)
+            boolean gameOver = model.getLives() <= 0;
+            if (gameOver && Assets.playerDeath != null) {
+                playerSprite = Assets.playerDeath;
+                sw = playerSprite.getWidth();   // 24
+                sh = playerSprite.getHeight();  // 15
+                pDrawW = sw * PLAYER_ZOOM;
+                pDrawH = sh * PLAYER_ZOOM;
+
+                // centra lo sprite di morte rispetto al player
+                int normalW = 32 * PLAYER_ZOOM;
+                int normalH = 32 * PLAYER_ZOOM;
+                pDrawX = pDrawX + (normalW - pDrawW) / 2;
+                pDrawY = pDrawY + (normalH - pDrawH) / 2;
+            }
 
             int playerFeetY = pDrawY + pDrawH;
 
@@ -140,15 +162,20 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
                 merchantFeetY = roomY + b.y + b.height;
             }
 
+            // Draw order: enemy + rupee (sotto)
+            drawEnemy(g, roomX, roomY);
+            drawRupee(g, roomX, roomY);
+
+            // disegno player con blink se necessario
             if (merchantFeetY != Integer.MIN_VALUE && playerFeetY < merchantFeetY) {
-                g.drawImage(playerSprite, pDrawX, pDrawY, pDrawW, pDrawH, null);
+                drawPlayerWithBlink(g, playerSprite, pDrawX, pDrawY, pDrawW, pDrawH);
                 drawMerchant(g, roomForEntities, roomX, roomY);
             } else {
                 drawMerchant(g, roomForEntities, roomX, roomY);
-                g.drawImage(playerSprite, pDrawX, pDrawY, pDrawW, pDrawH, null);
+                drawPlayerWithBlink(g, playerSprite, pDrawX, pDrawY, pDrawW, pDrawH);
             }
 
-            // ---- 3) SOLIDS LAYER (tile==1) sopra al player: muri + bancone ----
+            // ---- 3) SOLIDS LAYER ----
             if (drawTwoRooms) {
                 renderRoomSolids(g, model.getRoom(), currX, currY);
                 renderRoomSolids(g, model.getNextRoom(), nextX, nextY);
@@ -156,8 +183,8 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
                 renderRoomSolids(g, model.getRoom(), baseX, baseY);
             }
 
-            // ---- PROMPT INTERAZIONE ----
-            if (!model.isShopOpen() && model.isShowInteractPrompt()) {
+            // ---- PROMPT ----
+            if (!model.isShopOpen() && model.isShowInteractPrompt() && !gameOver) {
                 int msgW = 240;
                 int msgH = 26;
                 int x = baseX + 10;
@@ -171,8 +198,13 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
             }
 
             // ---- SHOP OVERLAY ----
-            if (model.isShopOpen()) {
+            if (model.isShopOpen() && !gameOver) {
                 renderShopOverlay(g, baseX, baseY, roomPixelW, roomPixelH);
+            }
+
+            // ---- GAME OVER OVERLAY ----
+            if (gameOver) {
+                drawGameOverOverlay(g, baseX, baseY, roomPixelW, roomPixelH);
             }
 
             g.setColor(new Color(255, 255, 255, 40));
@@ -183,6 +215,88 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         }
     }
 
+    private void drawPlayerWithBlink(Graphics2D g, BufferedImage sprite, int x, int y, int w, int h) {
+        Composite old = g.getComposite();
+        try {
+            if (model.isPlayerBlinking()) {
+                float t = model.getPlayerBlinkT();
+                boolean dim = ((int) (t * 12f)) % 2 == 0;
+                g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, dim ? 0.35f : 1.0f));
+            }
+            g.drawImage(sprite, x, y, w, h, null);
+        } finally {
+            g.setComposite(old);
+        }
+    }
+
+    private void drawGameOverOverlay(Graphics2D g, int baseX, int baseY, int roomPixelW, int roomPixelH) {
+        String msg = "premere X per riprovare";
+
+        int w = 360;
+        int h = 90;
+        int x = baseX + (roomPixelW - w) / 2;
+        int y = baseY + (roomPixelH - h) / 2;
+
+        g.setColor(new Color(0, 0, 0, 200));
+        g.fillRoundRect(x, y, w, h, 12, 12);
+
+        g.setColor(Color.WHITE);
+        g.drawRoundRect(x, y, w, h, 12, 12);
+
+        // testo (font di default)
+        FontMetrics fm = g.getFontMetrics();
+        int tx = x + (w - fm.stringWidth(msg)) / 2;
+        int ty = y + (h + fm.getAscent()) / 2 - 4;
+
+        g.drawString(msg, tx, ty);
+    }
+
+    private void drawEnemy(Graphics2D g, int roomX, int roomY) {
+        if (!model.isEnemyAlive()) return;
+        if (Assets.enemy == null) return;
+
+        if (model.getCurrentRoomIndex() != ENEMY_ROOM_INDEX) return;
+        if (model.isTransitioning() || sliding) return;
+
+        int ex = roomX + Math.round(model.getEnemyX());
+        int ey = roomY + Math.round(model.getEnemyY());
+
+        int sw = Assets.enemy.getWidth();   // 56
+        int sh = Assets.enemy.getHeight();  // 58
+
+        int dw = Math.round(sw * ENEMY_SCALE); // 28
+        int dh = Math.round(sh * ENEMY_SCALE); // 29
+
+        Composite old = g.getComposite();
+        try {
+            if (model.isEnemyBlinking()) {
+                float t = model.getEnemyBlinkT();
+                boolean dim = ((int) (t * 12f)) % 2 == 0;
+                g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, dim ? 0.35f : 1.0f));
+            }
+            g.drawImage(Assets.enemy, ex, ey, dw, dh, null);
+        } finally {
+            g.setComposite(old);
+        }
+    }
+
+    private void drawRupee(Graphics2D g, int roomX, int roomY) {
+        if (!model.isRupeeAlive()) return;
+        if (Assets.rupee == null) return;
+
+        if (model.getCurrentRoomIndex() != 7) return;
+        if (model.isTransitioning() || sliding) return;
+
+        int rx = roomX + Math.round(model.getRupeeX());
+        int ry = roomY + Math.round(model.getRupeeY());
+
+        int sw = Assets.rupee.getWidth();   // 8
+        int sh = Assets.rupee.getHeight();  // 14
+
+        int zoom = 2; // 16x28
+        g.drawImage(Assets.rupee, rx, ry, sw * zoom, sh * zoom, null);
+    }
+
     private BufferedImage getPlayerSprite() {
         int dir = switch (model.getFacing()) {
             case DOWN -> Assets.DIR_DOWN;
@@ -191,10 +305,16 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
             case RIGHT -> Assets.DIR_RIGHT;
         };
 
+        if (model.isAttacking()) {
+            int f = model.getAttackFrame(); // 0..1
+            return Assets.playerAttack[dir][f];
+        }
+
         if (model.isMoving()) {
             int f = model.getAnimFrame(); // 0..1
             return Assets.playerWalk[dir][f];
         }
+
         return Assets.playerIdle[dir];
     }
 
@@ -209,7 +329,6 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
                 "  Score: " + model.getScore(), 10, 44);
     }
 
-    // Layer 1: solo floor
     private void renderRoomFloor(Graphics2D g, Room room, int ox, int oy) {
         for (int y = 0; y < Room.ROWS; y++) {
             for (int x = 0; x < Room.COLS; x++) {
@@ -228,7 +347,6 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         }
     }
 
-    // Layer 3: solo solid (muri + bancone)
     private void renderRoomSolids(Graphics2D g, Room room, int ox, int oy) {
         for (int y = 0; y < Room.ROWS; y++) {
             for (int x = 0; x < Room.COLS; x++) {

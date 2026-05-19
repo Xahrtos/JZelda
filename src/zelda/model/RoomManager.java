@@ -108,6 +108,11 @@ public class RoomManager {
             return r;
         }
 
+        // ---- ROOM 7: arena vuota (mantiene solo perimetro + porte) ----
+        if (id == PLAY_LAST_INDEX) {
+            return r;
+        }
+
         switch (pattern) {
             case 0 -> {
                 int oy = 3;

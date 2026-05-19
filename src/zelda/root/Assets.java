@@ -17,22 +17,30 @@ public class Assets {
 
     public static final int PLAYER_DIRECTIONS = 4;
     public static final int PLAYER_WALK_FRAMES = 2;
+    public static final int PLAYER_ATTACK_FRAMES = 2;
 
     public static BufferedImage[] playerIdle = new BufferedImage[PLAYER_DIRECTIONS];
     public static BufferedImage[][] playerWalk = new BufferedImage[PLAYER_DIRECTIONS][PLAYER_WALK_FRAMES];
+    public static BufferedImage[][] playerAttack = new BufferedImage[PLAYER_DIRECTIONS][PLAYER_ATTACK_FRAMES];
 
     public static BufferedImage merchant;
+
+    // ---- ENEMY ----
+    public static BufferedImage enemy;
+
+    // ---- RUPEE ----
+    public static BufferedImage rupee;
+    
+    public static BufferedImage playerDeath;
 
     public static void load() {
         // ---- IDLE ----
         BufferedImage idleDown = loadImage("sprites/idle_down.png");
         BufferedImage idleUp = loadImage("sprites/idle_up.png");
-        BufferedImage idleLR = loadImage("sprites/idle_leftright.png"); // BASE = LEFT (come richiesto)
+        BufferedImage idleLR = loadImage("sprites/idle_leftright.png"); // BASE = LEFT
 
         playerIdle[DIR_DOWN] = idleDown;
         playerIdle[DIR_UP] = idleUp;
-
-        // INVERTITO: file -> LEFT, mirror -> RIGHT
         playerIdle[DIR_LEFT] = idleLR;
         playerIdle[DIR_RIGHT] = mirrorHorizontally(idleLR);
 
@@ -43,18 +51,39 @@ public class Assets {
         playerWalk[DIR_UP][0] = loadImage("sprites/move_up1.png");
         playerWalk[DIR_UP][1] = loadImage("sprites/move_up2.png");
 
-        // BASE = LEFT (come richiesto), mirror -> RIGHT
-        BufferedImage moveL1 = loadImage("sprites/move_leftright1.png");
+        BufferedImage moveL1 = loadImage("sprites/move_leftright1.png"); // BASE = LEFT
         BufferedImage moveL2 = loadImage("sprites/move_leftright2.png");
 
         playerWalk[DIR_LEFT][0] = moveL1;
         playerWalk[DIR_LEFT][1] = moveL2;
-
         playerWalk[DIR_RIGHT][0] = mirrorHorizontally(moveL1);
         playerWalk[DIR_RIGHT][1] = mirrorHorizontally(moveL2);
 
+        // ---- ATTACK ----
+        playerAttack[DIR_DOWN][0] = loadImage("sprites/attack_down1.png");
+        playerAttack[DIR_DOWN][1] = loadImage("sprites/attack_down2.png");
+
+        playerAttack[DIR_UP][0] = loadImage("sprites/attack_up1.png");
+        playerAttack[DIR_UP][1] = loadImage("sprites/attack_up2.png");
+
+        BufferedImage atkL1 = loadImage("sprites/attack_leftright1.png"); // BASE = LEFT
+        BufferedImage atkL2 = loadImage("sprites/attack_leftright2.png");
+
+        playerAttack[DIR_LEFT][0] = atkL1;
+        playerAttack[DIR_LEFT][1] = atkL2;
+        playerAttack[DIR_RIGHT][0] = mirrorHorizontally(atkL1);
+        playerAttack[DIR_RIGHT][1] = mirrorHorizontally(atkL2);
+
         // ---- MERCHANT ----
         merchant = loadImage("sprites/merchant.png");
+
+        // ---- ENEMY ----
+        enemy = loadImage("sprites/enemy_1.png");
+
+        // ---- RUPEE ----
+        rupee = loadImage("sprites/rupee.png");
+        
+        playerDeath = loadImage("sprites/player_death.png");
     }
 
     private static BufferedImage mirrorHorizontally(BufferedImage src) {
@@ -62,7 +91,6 @@ public class Assets {
         Graphics2D g = dst.createGraphics();
         try {
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-
             AffineTransform at = new AffineTransform();
             at.scale(-1, 1);
             at.translate(-src.getWidth(), 0);

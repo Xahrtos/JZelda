@@ -91,6 +91,9 @@ public class GamePanel extends JPanel {
         
         bind(im, am, "E_P", KeyStroke.getKeyStroke("pressed E"), controller::pressInteract);
         bind(im, am, "ESC_P", KeyStroke.getKeyStroke("pressed ESCAPE"), controller::pressEsc);
+        
+        bind(im, am, "SPACE_P", KeyStroke.getKeyStroke("pressed SPACE"), controller::pressAttack);
+        bind(im, am, "X_P", KeyStroke.getKeyStroke("pressed X"), controller::pressRetry);
     }
 
     private static void bind(InputMap im, ActionMap am, String name, KeyStroke ks, Runnable r) {
