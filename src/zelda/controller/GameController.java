@@ -15,7 +15,6 @@ public class GameController {
 
     private boolean up, down, left, right;
 
-    // one-shot presses (da GamePanel keybinds)
     private boolean interactPressed; // E
     private boolean escPressed;      // ESC
     private boolean attackPressed;   // SPACE
@@ -27,32 +26,34 @@ public class GameController {
     private static final int SPRITE_W = 32;
     private static final int SPRITE_H = 32;
 
-    // Hitbox player (piedi)
     private static final int HIT_W = 16;
     private static final int HIT_H = 10;
 
-    // Offset hitbox rispetto al top-left dello sprite
     private static final int HIT_OFF_X = (SPRITE_W - HIT_W) / 2; // 8
     private static final int HIT_OFF_Y = SPRITE_H - HIT_H;       // 22
 
     private static final int PLAY_LAST_INDEX = 7;
     private static final int SHOP_INDEX = 8;
 
+    // SHOP: 0..3 (3=Exit)
     private static final int SHOP_EXIT_INDEX = 3;
 
-    private static final int COST_LIFE = 15;
+    // Shop costs (Cuore rimosso: ora è pozione)
+    private static final int COST_POTION = 5;
     private static final int COST_ITEM2 = 10;
     private static final int COST_ITEM3 = 25;
+
+    private static final float SHOP_ERR_MSG_SECONDS = 1.2f;
 
     private final ProfileStore profileStore = ProfileStore.getInstance();
 
     // ---- WALK ANIM ----
-    private int walkFrame = 0;                 // 0..1
+    private int walkFrame = 0;
     private float walkTimer = 0f;
     private static final float WALK_FRAME_TIME = 0.14f;
 
     // ---- ATTACK ANIM ----
-    private int atkFrame = 0;                  // 0..1
+    private int atkFrame = 0;
     private float atkTimer = 0f;
     private static final float ATTACK_FRAME_TIME = 0.10f;
     private static final float ATTACK_TOTAL_TIME = 0.22f;
@@ -60,7 +61,6 @@ public class GameController {
     // ---- ENEMY (solo room 7) ----
     private static final int ENEMY_ROOM_INDEX = 7;
 
-    // sprite 56x58 scalato 0.5 -> 28x29
     private static final int ENEMY_DRAW_W = 28;
     private static final int ENEMY_DRAW_H = 29;
 
@@ -74,14 +74,18 @@ public class GameController {
     private static final float ENEMY_INVULN_SECONDS = 0.25f;
     private static final float ENEMY_BLINK_SECONDS = 0.25f;
 
-    // hitbox spada
     private static final int SWORD_W = 18;
     private static final int SWORD_H = 18;
-    private static final int SWORD_REACH = 32; // PIU' LUNGA (prima 18)
+    private static final int SWORD_REACH = 50;
 
     private boolean attackDidHitThisSwing = false;
 
-    // ---- RUPEE PICKUP (sprite 8x14) ----
+    // ---- DROPS ----
+    private static final float POTION_DROP_CHANCE = 0.25f;
+    private static final int POTION_DRAW_W = 32; // 64x72 scaled 0.5
+    private static final int POTION_DRAW_H = 36;
+    private static final int DROP_SEPARATION_X = 14;
+
     private static final int RUPEE_HIT_W = 12;
     private static final int RUPEE_HIT_H = 20;
 
@@ -101,17 +105,15 @@ public class GameController {
     public void pressInteract() { interactPressed = true; }
     public void pressEsc() { escPressed = true; }
     public void pressAttack() { attackPressed = true; }
-    public void pressRetry() { retryPressed = true; } // X
+    public void pressRetry() { retryPressed = true; }
 
     public void debugWin() { simulateEndGame(true); }
     public void debugLose() { simulateEndGame(false); }
 
     public void update(float dt) {
-        // GAME OVER: blocca tutto, permetti solo retry con X
+        // GAME OVER
         if (model.getLives() <= 0) {
-            if (retryPressed) {
-                model.resetRun();
-            }
+            if (retryPressed) model.resetRun();
             retryPressed = false;
             interactPressed = false;
             escPressed = false;
@@ -132,6 +134,7 @@ public class GameController {
         if (model.isShopOpen()) {
             resetWalkAnim();
             resetAttackAnim();
+            model.updateShopTimers(dt);
             updateShopInput();
             interactPressed = false;
             escPressed = false;
@@ -140,9 +143,10 @@ public class GameController {
             return;
         }
 
-        // timers enemy invuln/blink + rupee hop + player invuln/blink
+        // timers
         model.updateEnemyTimers(dt);
         model.updateRupeeAnim(dt);
+        model.updatePotionAnim(dt);
         model.updatePlayerTimers(dt);
 
         boolean nearNpc = canInteractWithNpc();
@@ -162,6 +166,7 @@ public class GameController {
             updateEnemy(dt);
             checkEnemyTouchDamage();
             checkRupeePickup();
+            checkPotionPickup();
 
             interactPressed = false;
             escPressed = false;
@@ -175,6 +180,7 @@ public class GameController {
             updateEnemy(dt);
             checkEnemyTouchDamage();
             checkRupeePickup();
+            checkPotionPickup();
 
             interactPressed = false;
             escPressed = false;
@@ -209,6 +215,7 @@ public class GameController {
         updateEnemy(dt);
         checkEnemyTouchDamage();
         checkRupeePickup();
+        checkPotionPickup();
     }
 
     // -------------------- ENEMY --------------------
@@ -300,7 +307,7 @@ public class GameController {
         }
     }
 
-    // -------------------- ATTACK ANIM + HITBOX --------------------
+    // -------------------- ATTACK --------------------
 
     private void resetAttackAnim() {
         model.setAttacking(false);
@@ -318,7 +325,6 @@ public class GameController {
 
         atkFrame = 0;
         atkTimer = 0f;
-
         attackDidHitThisSwing = false;
 
         model.requestRepaint();
@@ -368,11 +374,21 @@ public class GameController {
             int hpBefore = model.getEnemyHp();
             model.hitEnemy(1, ENEMY_INVULN_SECONDS, ENEMY_BLINK_SECONDS);
 
-            // drop rupee se appena morto
             if (hpBefore > 0 && !model.isEnemyAlive()) {
-                float dropX = model.getEnemyX() + ENEMY_DRAW_W / 2f - 4f; // half rupee width (8/2)
-                float dropY = model.getEnemyY() + ENEMY_DRAW_H / 2f - 7f; // half rupee height (14/2)
-                model.spawnRupee(dropX, dropY);
+                float centerX = model.getEnemyX() + ENEMY_DRAW_W / 2f;
+                float centerY = model.getEnemyY() + ENEMY_DRAW_H / 2f;
+
+                // rupee a sinistra
+                float rupeeX = centerX - DROP_SEPARATION_X - 4f;
+                float rupeeY = centerY - 7f;
+                model.spawnRupee(rupeeX, rupeeY);
+
+                // potion a destra, con probabilità
+                if (Math.random() < POTION_DROP_CHANCE) {
+                    float potionX = centerX + DROP_SEPARATION_X - (POTION_DRAW_W / 2f);
+                    float potionY = centerY - (POTION_DRAW_H / 2f);
+                    model.spawnPotion(potionX, potionY);
+                }
             }
         }
     }
@@ -397,7 +413,7 @@ public class GameController {
         return new Rectangle(x, y, SWORD_W, SWORD_H);
     }
 
-    // -------------------- PLAYER DAMAGE FROM ENEMY --------------------
+    // -------------------- PLAYER DAMAGE --------------------
 
     private void checkEnemyTouchDamage() {
         if (!model.isEnemyAlive()) return;
@@ -423,12 +439,11 @@ public class GameController {
         }
     }
 
-    // -------------------- RUPEE PICKUP --------------------
+    // -------------------- PICKUPS --------------------
 
     private void checkRupeePickup() {
         if (!model.isRupeeAlive()) return;
         if (model.getCurrentRoomIndex() != ENEMY_ROOM_INDEX) return;
-
         if (model.isRupeeAnimating()) return;
 
         Rectangle rupeeRect = new Rectangle(
@@ -448,6 +463,31 @@ public class GameController {
         if (playerFeet.intersects(rupeeRect)) {
             model.addRupees(1);
             model.despawnRupee();
+        }
+    }
+
+    private void checkPotionPickup() {
+        if (!model.isPotionAlive()) return;
+        if (model.getCurrentRoomIndex() != ENEMY_ROOM_INDEX) return;
+        if (model.isPotionAnimating()) return;
+
+        Rectangle potionRect = new Rectangle(
+                Math.round(model.getPotionX()) + 6,
+                Math.round(model.getPotionY()) + 8,
+                20,
+                22
+        );
+
+        Rectangle playerFeet = new Rectangle(
+                Math.round(model.getPlayerX() + HIT_OFF_X),
+                Math.round(model.getPlayerY() + HIT_OFF_Y),
+                HIT_W,
+                HIT_H
+        );
+
+        if (playerFeet.intersects(potionRect)) {
+            model.addLives(1);
+            model.despawnPotion();
         }
     }
 
@@ -486,18 +526,19 @@ public class GameController {
         }
 
         int cost;
-        if (sel == 0) cost = COST_LIFE;
+        if (sel == 0) cost = COST_POTION;
         else if (sel == 1) cost = COST_ITEM2;
-        else cost = COST_ITEM3;
+        else cost = COST_ITEM3; // sel == 2
 
         if (model.getRupees() < cost) {
+            model.showShopMessage("NON HAI ABBASTANZA RUPIE!", SHOP_ERR_MSG_SECONDS);
             return;
         }
 
         model.addRupees(-cost);
 
         if (sel == 0) {
-            model.addLives(1);
+            model.addLives(1); // POTION
         } else if (sel == 1) {
             model.addScore(100);
         } else if (sel == 2) {
@@ -655,6 +696,8 @@ public class GameController {
             model.movePlayerTo(px, clampYMax);
         }
     }
+
+    // -------------------- DEBUG / PROFILE --------------------
 
     private void simulateEndGame(boolean won) {
         String pid = model.getProfileId();

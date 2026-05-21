@@ -2,92 +2,89 @@ package zelda.model;
 
 /**
  * Model principale del gioco (MVC).
- * Contiene:
- * - HUD (vite, rupie, score + profilo attivo)
- * - Player position (in pixel dentro la stanza)
- * - Gestione stanze (8 stanze lineari + shop)
- * - Stato di transizione (slide) tra stanze
- *
- * Nota: TILE_SIZE=32, HUD sopra (HUD_HEIGHT=64).
  */
 public class GameModel extends ObservableModel {
 
-    // Stile NES
     public static final int TILE_SIZE = 32;
     public static final int HUD_HEIGHT = 64;
 
-    // Stanze#
     int start = 8;
     private final RoomManager roomManager = new RoomManager();
     private int currentRoomIndex = start;
 
-    // Transizione slide
     private boolean transitioning = false;
     private SlideDir slideDir = SlideDir.LEFT;
     private int nextRoomIndex = 0;
 
-    // Player (pixel nella stanza)
     private float playerX = 6 * TILE_SIZE;
     private float playerY = 6 * TILE_SIZE;
 
-    // HUD: stats run
     private int lives = 3;
     private int rupees = 0;
     private int score = 0;
 
-    // HUD: profilo attivo
     private String profileNickname = "Player";
     private String profileAvatarPath = "";
     private String profileId = "";
 
-    // ---- SHOP / UI ----
     private boolean showInteractPrompt = false;
 
     private boolean shopOpen = false;
-    private int shopSelectionIndex = 0; // 0..3 (3 = Exit)
+    private int shopSelectionIndex = 0; // 0..3 (3=Exit)
 
-    // ---- ANIMAZIONE PLAYER ----
+    // messaggio shop (es. soldi insufficienti)
+    private String shopMessage = "";
+    private float shopMessageT = 0f;
+
     public enum Facing { DOWN, UP, LEFT, RIGHT }
-
     private Facing facing = Facing.DOWN;
     private boolean moving = false;
-
-    // 0..1 (perché hai 2 frame di camminata)
     private int animFrame = 0;
 
-    // ---- ATTACK STATE ----
     private boolean attacking = false;
-    private int attackFrame = 0; // 0..1
+    private int attackFrame = 0;
 
-    // ---- ENEMY (semplice) ----
+    // ---- ENEMY ----
     private boolean enemyAlive = true;
     private int enemyHp = 3;
 
     private float enemyX = 8 * TILE_SIZE;
     private float enemyY = 4 * TILE_SIZE;
 
-    // movimento AI
     private float enemyVx = 0f;
     private float enemyVy = 0f;
     private float enemyDirTimer = 0f;
 
-    // invuln / blink
     private float enemyInvulnT = 0f;
     private float enemyBlinkT = 0f;
+
+    // ---- PLAYER INVULN ----
+    private float playerInvulnT = 0f;
+    private float playerBlinkT = 0f;
 
     // ---- RUPEE DROP ----
     private boolean rupeeAlive = false;
     private float rupeeX = 0f;
     private float rupeeY = 0f;
 
-    // animazione hop
     private boolean rupeeAnimating = false;
     private float rupeeAnimT = 0f;
     private float rupeeAnimDur = 0.28f;
     private float rupeeHopHeight = 12f;
     private float rupeeLandY = 0f;
 
-    // --- getters/setters anim player ---
+    // ---- POTION DROP ----
+    private boolean potionAlive = false;
+    private float potionX = 0f;
+    private float potionY = 0f;
+
+    private boolean potionAnimating = false;
+    private float potionAnimT = 0f;
+    private float potionAnimDur = 0.32f;
+    private float potionHopHeight = 14f;
+    private float potionLandY = 0f;
+
+    // -------- Player anim getters/setters --------
     public Facing getFacing() { return facing; }
     public void setFacing(Facing f) { this.facing = f; }
 
@@ -103,132 +100,21 @@ public class GameModel extends ObservableModel {
     public int getAttackFrame() { return attackFrame; }
     public void setAttackFrame(int f) { this.attackFrame = f; }
 
-    /**
-     * Forza un repaint lato view anche se la posizione non cambia.
-     */
     public void requestRepaint() {
         fireEvent(new GameEvent(GameEventType.PLAYER_MOVED));
     }
 
-    // --- enemy API ---
-    public boolean isEnemyAlive() { return enemyAlive; }
-    public int getEnemyHp() { return enemyHp; }
+    // -------- Rooms --------
+    public Room getRoom() { return roomManager.getRoom(currentRoomIndex); }
+    public Room getNextRoom() { return roomManager.getRoom(nextRoomIndex); }
 
-    public float getEnemyX() { return enemyX; }
-    public float getEnemyY() { return enemyY; }
-    public void setEnemyPos(float x, float y) {
-        enemyX = x;
-        enemyY = y;
-        requestRepaint();
-    }
+    public int getCurrentRoomIndex() { return currentRoomIndex; }
+    public int getRoomsCount() { return roomManager.count(); }
 
-    public float getEnemyVx() { return enemyVx; }
-    public float getEnemyVy() { return enemyVy; }
-    public void setEnemyVel(float vx, float vy) { enemyVx = vx; enemyVy = vy; }
-
-    public float getEnemyDirTimer() { return enemyDirTimer; }
-    public void setEnemyDirTimer(float t) { enemyDirTimer = t; }
-
-    public boolean isEnemyInvulnerable() { return enemyInvulnT > 0f; }
-    public boolean isEnemyBlinking() { return enemyBlinkT > 0f; }
-
-    public float getEnemyBlinkT() { return enemyBlinkT; }
-
-    public void updateEnemyTimers(float dt) {
-        if (enemyInvulnT > 0f) enemyInvulnT = Math.max(0f, enemyInvulnT - dt);
-        if (enemyBlinkT > 0f) enemyBlinkT = Math.max(0f, enemyBlinkT - dt);
-    }
-
-    public void hitEnemy(int dmg, float invulnSeconds, float blinkSeconds) {
-        if (!enemyAlive) return;
-        if (enemyInvulnT > 0f) return;
-
-        enemyHp = Math.max(0, enemyHp - dmg);
-        if (enemyHp == 0) enemyAlive = false;
-
-        enemyInvulnT = Math.max(enemyInvulnT, invulnSeconds);
-        enemyBlinkT = Math.max(enemyBlinkT, blinkSeconds);
-
-        requestRepaint();
-    }
-
-    // --- rupee API ---
-    public boolean isRupeeAlive() { return rupeeAlive; }
-    public float getRupeeX() { return rupeeX; }
-    public float getRupeeY() { return rupeeY; }
-    public boolean isRupeeAnimating() { return rupeeAnimating; }
-
-    public void spawnRupee(float x, float y) {
-        rupeeAlive = true;
-        rupeeX = x;
-        rupeeY = y;
-
-        rupeeAnimating = true;
-        rupeeAnimT = 0f;
-        rupeeAnimDur = 0.28f;
-        rupeeHopHeight = 12f;
-
-        rupeeLandY = y;
-
-        requestRepaint();
-    }
-
-    public void despawnRupee() {
-        rupeeAlive = false;
-        rupeeAnimating = false;
-        requestRepaint();
-    }
-
-    public void updateRupeeAnim(float dt) {
-        if (!rupeeAlive || !rupeeAnimating) return;
-
-        rupeeAnimT += dt;
-        float t = rupeeAnimT / rupeeAnimDur;
-        if (t >= 1f) {
-            t = 1f;
-            rupeeAnimating = false;
-            rupeeY = rupeeLandY;
-            requestRepaint();
-            return;
-        }
-
-        // parabola: y = land - 4h * t(1-t)
-        float arc = 4f * rupeeHopHeight * t * (1f - t);
-        rupeeY = rupeeLandY - arc;
-        requestRepaint();
-    }
-
-    // ---- ROOM API ----
-
-    public Room getRoom() {
-        return roomManager.getRoom(currentRoomIndex);
-    }
-
-    public Room getNextRoom() {
-        return roomManager.getRoom(nextRoomIndex);
-    }
-
-    public int getCurrentRoomIndex() {
-        return currentRoomIndex;
-    }
-
-    public int getRoomsCount() {
-        return roomManager.count();
-    }
-
-    // ---- TRANSITION API ----
-
-    public boolean isTransitioning() {
-        return transitioning;
-    }
-
-    public SlideDir getSlideDir() {
-        return slideDir;
-    }
-
-    public int getNextRoomIndex() {
-        return nextRoomIndex;
-    }
+    // -------- Transition --------
+    public boolean isTransitioning() { return transitioning; }
+    public SlideDir getSlideDir() { return slideDir; }
+    public int getNextRoomIndex() { return nextRoomIndex; }
 
     public void beginRoomTransition(int targetRoomIndex, SlideDir dir) {
         if (transitioning) return;
@@ -249,7 +135,6 @@ public class GameModel extends ObservableModel {
 
         // respawn/reset quando entri nella room 7 (arena)
         if (currentRoomIndex == RoomManager.PLAY_LAST_INDEX) {
-            // nemico
             enemyAlive = true;
             enemyHp = 3;
             enemyX = 8 * TILE_SIZE;
@@ -260,23 +145,19 @@ public class GameModel extends ObservableModel {
             enemyInvulnT = 0f;
             enemyBlinkT = 0f;
 
-            // drop reset
             rupeeAlive = false;
             rupeeAnimating = false;
+
+            potionAlive = false;
+            potionAnimating = false;
         }
 
         fireEvent(new GameEvent(GameEventType.ROOM_CHANGED));
     }
 
-    // ---- PLAYER API ----
-
-    public float getPlayerX() {
-        return playerX;
-    }
-
-    public float getPlayerY() {
-        return playerY;
-    }
+    // -------- Player pos --------
+    public float getPlayerX() { return playerX; }
+    public float getPlayerY() { return playerY; }
 
     public void movePlayerTo(float x, float y) {
         this.playerX = x;
@@ -284,19 +165,10 @@ public class GameModel extends ObservableModel {
         fireEvent(new GameEvent(GameEventType.PLAYER_MOVED));
     }
 
-    // ---- HUD API (run stats) ----
-
-    public int getLives() {
-        return lives;
-    }
-
-    public int getRupees() {
-        return rupees;
-    }
-
-    public int getScore() {
-        return score;
-    }
+    // -------- HUD stats --------
+    public int getLives() { return lives; }
+    public int getRupees() { return rupees; }
+    public int getScore() { return score; }
 
     public void addRupees(int amount) {
         rupees += amount;
@@ -321,19 +193,10 @@ public class GameModel extends ObservableModel {
         if (lives <= 0) fireEvent(new GameEvent(GameEventType.GAME_OVER));
     }
 
-    // ---- HUD API (profilo attivo) ----
-
-    public String getProfileNickname() {
-        return profileNickname;
-    }
-
-    public String getProfileAvatarPath() {
-        return profileAvatarPath;
-    }
-
-    public String getProfileId() {
-        return profileId;
-    }
+    // -------- Profile --------
+    public String getProfileNickname() { return profileNickname; }
+    public String getProfileAvatarPath() { return profileAvatarPath; }
+    public String getProfileId() { return profileId; }
 
     public void setActiveProfile(String id, String nickname, String avatarPath) {
         this.profileId = (id == null) ? "" : id.trim();
@@ -341,10 +204,154 @@ public class GameModel extends ObservableModel {
         this.profileAvatarPath = (avatarPath == null) ? "" : avatarPath.trim();
         fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
     }
- // ---- PLAYER DAMAGE / INVULN ----
-    private float playerInvulnT = 0f;
-    private float playerBlinkT = 0f;
 
+    public void resetRun() {
+        currentRoomIndex = 0;
+        transitioning = false;
+        nextRoomIndex = 0;
+        slideDir = SlideDir.LEFT;
+
+        playerX = 6 * TILE_SIZE;
+        playerY = 6 * TILE_SIZE;
+
+        lives = 3;
+        rupees = 0;
+        score = 0;
+
+        shopOpen = false;
+        shopSelectionIndex = 0;
+        showInteractPrompt = false;
+
+        shopMessage = "";
+        shopMessageT = 0f;
+
+        facing = Facing.DOWN;
+        moving = false;
+        animFrame = 0;
+
+        attacking = false;
+        attackFrame = 0;
+
+        enemyAlive = true;
+        enemyHp = 3;
+        enemyX = 8 * TILE_SIZE;
+        enemyY = 4 * TILE_SIZE;
+        enemyVx = 0f;
+        enemyVy = 0f;
+        enemyDirTimer = 0f;
+        enemyInvulnT = 0f;
+        enemyBlinkT = 0f;
+
+        playerInvulnT = 0f;
+        playerBlinkT = 0f;
+
+        rupeeAlive = false;
+        rupeeAnimating = false;
+
+        potionAlive = false;
+        potionAnimating = false;
+
+        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
+        fireEvent(new GameEvent(GameEventType.ROOM_CHANGED));
+        fireEvent(new GameEvent(GameEventType.PLAYER_MOVED));
+    }
+
+    // -------- UI/Shop --------
+    public boolean isShowInteractPrompt() { return showInteractPrompt; }
+
+    public void setShowInteractPrompt(boolean v) {
+        if (showInteractPrompt == v) return;
+        showInteractPrompt = v;
+        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
+    }
+
+    public boolean isShopOpen() { return shopOpen; }
+    public int getShopSelectionIndex() { return shopSelectionIndex; }
+
+    // 4 voci: 0..3 (3 = Exit)
+    public void setShopSelectionIndex(int idx) {
+        int clamped = Math.max(0, Math.min(idx, 3));
+        if (shopSelectionIndex == clamped) return;
+        shopSelectionIndex = clamped;
+        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
+    }
+
+    public void openShop() {
+        if (shopOpen) return;
+        shopOpen = true;
+        shopSelectionIndex = 0;
+        shopMessage = "";
+        shopMessageT = 0f;
+        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
+    }
+
+    public void closeShop() {
+        if (!shopOpen) return;
+        shopOpen = false;
+        shopMessage = "";
+        shopMessageT = 0f;
+        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
+    }
+
+    public String getShopMessage() { return shopMessage; }
+    public float getShopMessageT() { return shopMessageT; }
+
+    public void showShopMessage(String msg, float seconds) {
+        shopMessage = (msg == null) ? "" : msg;
+        shopMessageT = Math.max(0f, seconds);
+        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
+    }
+
+    public void updateShopTimers(float dt) {
+        if (shopMessageT > 0f) {
+            shopMessageT = Math.max(0f, shopMessageT - dt);
+            if (shopMessageT == 0f) shopMessage = "";
+        }
+    }
+
+    // -------- Enemy --------
+    public boolean isEnemyAlive() { return enemyAlive; }
+    public int getEnemyHp() { return enemyHp; }
+
+    public float getEnemyX() { return enemyX; }
+    public float getEnemyY() { return enemyY; }
+
+    public void setEnemyPos(float x, float y) {
+        enemyX = x;
+        enemyY = y;
+        requestRepaint();
+    }
+
+    public float getEnemyVx() { return enemyVx; }
+    public float getEnemyVy() { return enemyVy; }
+    public void setEnemyVel(float vx, float vy) { enemyVx = vx; enemyVy = vy; }
+
+    public float getEnemyDirTimer() { return enemyDirTimer; }
+    public void setEnemyDirTimer(float t) { enemyDirTimer = t; }
+
+    public boolean isEnemyInvulnerable() { return enemyInvulnT > 0f; }
+    public boolean isEnemyBlinking() { return enemyBlinkT > 0f; }
+    public float getEnemyBlinkT() { return enemyBlinkT; }
+
+    public void updateEnemyTimers(float dt) {
+        if (enemyInvulnT > 0f) enemyInvulnT = Math.max(0f, enemyInvulnT - dt);
+        if (enemyBlinkT > 0f) enemyBlinkT = Math.max(0f, enemyBlinkT - dt);
+    }
+
+    public void hitEnemy(int dmg, float invulnSeconds, float blinkSeconds) {
+        if (!enemyAlive) return;
+        if (enemyInvulnT > 0f) return;
+
+        enemyHp = Math.max(0, enemyHp - dmg);
+        if (enemyHp == 0) enemyAlive = false;
+
+        enemyInvulnT = Math.max(enemyInvulnT, invulnSeconds);
+        enemyBlinkT = Math.max(enemyBlinkT, blinkSeconds);
+
+        requestRepaint();
+    }
+
+    // -------- Player invuln --------
     public boolean isPlayerInvulnerable() { return playerInvulnT > 0f; }
     public boolean isPlayerBlinking() { return playerBlinkT > 0f; }
     public float getPlayerBlinkT() { return playerBlinkT; }
@@ -361,91 +368,90 @@ public class GameModel extends ObservableModel {
         playerBlinkT = Math.max(playerBlinkT, blinkSeconds);
         requestRepaint();
     }
-    public void resetRun() {
-        currentRoomIndex = 0;
-        transitioning = false;
-        nextRoomIndex = 0;
-        slideDir = SlideDir.LEFT;
 
-        playerX = 6 * TILE_SIZE;
-        playerY = 6 * TILE_SIZE;
+    // -------- Rupee --------
+    public boolean isRupeeAlive() { return rupeeAlive; }
+    public float getRupeeX() { return rupeeX; }
+    public float getRupeeY() { return rupeeY; }
+    public boolean isRupeeAnimating() { return rupeeAnimating; }
 
-        lives = 3;
-        rupees = 0;
-        score = 0;
-        
-        playerInvulnT = 0f;
-        playerBlinkT = 0f;
+    public void spawnRupee(float x, float y) {
+        rupeeAlive = true;
+        rupeeX = x;
+        rupeeY = y;
 
-        shopOpen = false;
-        shopSelectionIndex = 0;
-        showInteractPrompt = false;
+        rupeeAnimating = true;
+        rupeeAnimT = 0f;
+        rupeeAnimDur = 0.28f;
+        rupeeHopHeight = 12f;
+        rupeeLandY = y;
 
-        // reset animazioni player
-        facing = Facing.DOWN;
-        moving = false;
-        animFrame = 0;
+        requestRepaint();
+    }
 
-        attacking = false;
-        attackFrame = 0;
-
-        // reset enemy
-        enemyAlive = true;
-        enemyHp = 3;
-        enemyX = 8 * TILE_SIZE;
-        enemyY = 4 * TILE_SIZE;
-        enemyVx = 0f;
-        enemyVy = 0f;
-        enemyDirTimer = 0f;
-        enemyInvulnT = 0f;
-        enemyBlinkT = 0f;
-
-        // reset drop
+    public void despawnRupee() {
         rupeeAlive = false;
         rupeeAnimating = false;
-
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
-        fireEvent(new GameEvent(GameEventType.ROOM_CHANGED));
-        fireEvent(new GameEvent(GameEventType.PLAYER_MOVED));
+        requestRepaint();
     }
 
-    // ---- UI / SHOP API ----
+    public void updateRupeeAnim(float dt) {
+        if (!rupeeAlive || !rupeeAnimating) return;
 
-    public boolean isShowInteractPrompt() {
-        return showInteractPrompt;
+        rupeeAnimT += dt;
+        float t = rupeeAnimT / rupeeAnimDur;
+        if (t >= 1f) {
+            rupeeAnimating = false;
+            rupeeY = rupeeLandY;
+            requestRepaint();
+            return;
+        }
+
+        float arc = 4f * rupeeHopHeight * t * (1f - t);
+        rupeeY = rupeeLandY - arc;
+        requestRepaint();
     }
 
-    public void setShowInteractPrompt(boolean v) {
-        if (showInteractPrompt == v) return;
-        showInteractPrompt = v;
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
+    // -------- Potion --------
+    public boolean isPotionAlive() { return potionAlive; }
+    public float getPotionX() { return potionX; }
+    public float getPotionY() { return potionY; }
+    public boolean isPotionAnimating() { return potionAnimating; }
+
+    public void spawnPotion(float x, float y) {
+        potionAlive = true;
+        potionX = x;
+        potionY = y;
+
+        potionAnimating = true;
+        potionAnimT = 0f;
+        potionAnimDur = 0.32f;
+        potionHopHeight = 14f;
+        potionLandY = y;
+
+        requestRepaint();
     }
 
-    public boolean isShopOpen() {
-        return shopOpen;
+    public void despawnPotion() {
+        potionAlive = false;
+        potionAnimating = false;
+        requestRepaint();
     }
 
-    public int getShopSelectionIndex() {
-        return shopSelectionIndex;
-    }
+    public void updatePotionAnim(float dt) {
+        if (!potionAlive || !potionAnimating) return;
 
-    public void setShopSelectionIndex(int idx) {
-        int clamped = Math.max(0, Math.min(idx, 3));
-        if (shopSelectionIndex == clamped) return;
-        shopSelectionIndex = clamped;
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
-    }
+        potionAnimT += dt;
+        float t = potionAnimT / potionAnimDur;
+        if (t >= 1f) {
+            potionAnimating = false;
+            potionY = potionLandY;
+            requestRepaint();
+            return;
+        }
 
-    public void openShop() {
-        if (shopOpen) return;
-        shopOpen = true;
-        shopSelectionIndex = 0;
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
-    }
-
-    public void closeShop() {
-        if (!shopOpen) return;
-        shopOpen = false;
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
+        float arc = 4f * potionHopHeight * t * (1f - t);
+        potionY = potionLandY - arc;
+        requestRepaint();
     }
 }

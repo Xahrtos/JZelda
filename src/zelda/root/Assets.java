@@ -28,9 +28,11 @@ public class Assets {
     // ---- ENEMY ----
     public static BufferedImage enemy;
 
-    // ---- RUPEE ----
+    // ---- DROPS ----
     public static BufferedImage rupee;
-    
+    public static BufferedImage potion;
+
+    // ---- GAME OVER ----
     public static BufferedImage playerDeath;
 
     public static void load() {
@@ -80,9 +82,11 @@ public class Assets {
         // ---- ENEMY ----
         enemy = loadImage("sprites/enemy_1.png");
 
-        // ---- RUPEE ----
+        // ---- DROPS ----
         rupee = loadImage("sprites/rupee.png");
-        
+        potion = loadImage("sprites/potion.png");
+
+        // ---- GAME OVER ----
         playerDeath = loadImage("sprites/player_death.png");
     }
 

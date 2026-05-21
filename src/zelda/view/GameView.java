@@ -23,6 +23,24 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
     private static final int ENEMY_ROOM_INDEX = 7;
     private static final float ENEMY_SCALE = 0.5f; // 56x58 -> 28x29
 
+    // ---- DROPS RENDER ----
+    private static final float POTION_SCALE = 0.5f; // 64x72 -> 32x36
+
+    // ---- GAME OVER UI ----
+    private boolean gameOverUiActive = false;
+    private float gameOverUiT = 0f;
+
+    private static final float GAME_OVER_DELAY = 2.0f;
+    private static final float GAME_OVER_FADE_IN = 0.9f;
+
+    // ---- GAME OVER DEATH SPRITE ANIM ----
+    private boolean deathAnimInit = false;
+    private float deathAnimT = 0f;
+    private static final float DEATH_MOVE_DUR = 0.9f;
+
+    private float deathFromX, deathFromY;
+    private float deathToX, deathToY;
+
     public GameView(GameModel model) {
         this.model = model;
         setBackground(Color.BLACK);
@@ -49,6 +67,29 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
     }
 
     public void tick(float dt) {
+        // game over ui + anim
+        if (model.getLives() <= 0) {
+            if (!gameOverUiActive) {
+                gameOverUiActive = true;
+                gameOverUiT = 0f;
+
+                initDeathAnimTargets();
+                deathAnimInit = true;
+                deathAnimT = 0f;
+            } else {
+                gameOverUiT += dt;
+                if (deathAnimInit && deathAnimT < DEATH_MOVE_DUR) {
+                    deathAnimT = Math.min(DEATH_MOVE_DUR, deathAnimT + dt);
+                }
+            }
+            repaint();
+        } else {
+            gameOverUiActive = false;
+            gameOverUiT = 0f;
+            deathAnimInit = false;
+            deathAnimT = 0f;
+        }
+
         if (sliding) {
             slideT += dt / SLIDE_DURATION;
 
@@ -69,6 +110,12 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         try {
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+
+            boolean gameOver = model.getLives() <= 0;
+            if (gameOver) {
+                renderGameOverScreen(g);
+                return;
+            }
 
             int screenW = getWidth();
             renderHud(g, screenW);
@@ -126,33 +173,15 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
             float px = model.getPlayerX();
             float py = model.getPlayerY();
 
-            int pDrawX = roomX + Math.round(px);
-            int pDrawY = roomY + Math.round(py);
-
-            // player sprite normal
             BufferedImage playerSprite = getPlayerSprite();
-
-            // dimensioni draw del player (in base allo sprite scelto)
             int sw = playerSprite.getWidth();
             int sh = playerSprite.getHeight();
+
             int pDrawW = sw * PLAYER_ZOOM;
             int pDrawH = sh * PLAYER_ZOOM;
 
-            // se game over, sostituisci sprite con death (24x15)
-            boolean gameOver = model.getLives() <= 0;
-            if (gameOver && Assets.playerDeath != null) {
-                playerSprite = Assets.playerDeath;
-                sw = playerSprite.getWidth();   // 24
-                sh = playerSprite.getHeight();  // 15
-                pDrawW = sw * PLAYER_ZOOM;
-                pDrawH = sh * PLAYER_ZOOM;
-
-                // centra lo sprite di morte rispetto al player
-                int normalW = 32 * PLAYER_ZOOM;
-                int normalH = 32 * PLAYER_ZOOM;
-                pDrawX = pDrawX + (normalW - pDrawW) / 2;
-                pDrawY = pDrawY + (normalH - pDrawH) / 2;
-            }
+            int pDrawX = roomX + Math.round(px);
+            int pDrawY = roomY + Math.round(py);
 
             int playerFeetY = pDrawY + pDrawH;
 
@@ -162,11 +191,10 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
                 merchantFeetY = roomY + b.y + b.height;
             }
 
-            // Draw order: enemy + rupee (sotto)
             drawEnemy(g, roomX, roomY);
             drawRupee(g, roomX, roomY);
+            drawPotion(g, roomX, roomY);
 
-            // disegno player con blink se necessario
             if (merchantFeetY != Integer.MIN_VALUE && playerFeetY < merchantFeetY) {
                 drawPlayerWithBlink(g, playerSprite, pDrawX, pDrawY, pDrawW, pDrawH);
                 drawMerchant(g, roomForEntities, roomX, roomY);
@@ -184,7 +212,7 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
             }
 
             // ---- PROMPT ----
-            if (!model.isShopOpen() && model.isShowInteractPrompt() && !gameOver) {
+            if (!model.isShopOpen() && model.isShowInteractPrompt()) {
                 int msgW = 240;
                 int msgH = 26;
                 int x = baseX + 10;
@@ -198,13 +226,8 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
             }
 
             // ---- SHOP OVERLAY ----
-            if (model.isShopOpen() && !gameOver) {
+            if (model.isShopOpen()) {
                 renderShopOverlay(g, baseX, baseY, roomPixelW, roomPixelH);
-            }
-
-            // ---- GAME OVER OVERLAY ----
-            if (gameOver) {
-                drawGameOverOverlay(g, baseX, baseY, roomPixelW, roomPixelH);
             }
 
             g.setColor(new Color(255, 255, 255, 40));
@@ -212,6 +235,134 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
 
         } finally {
             g.dispose();
+        }
+    }
+
+    // ============ GAME OVER SCREEN ============
+
+    private void renderGameOverScreen(Graphics2D g) {
+        int screenW = getWidth();
+        int screenH = getHeight();
+
+        g.setColor(Color.BLACK);
+        g.fillRect(0, 0, screenW, screenH);
+
+        BufferedImage death = Assets.playerDeath;
+        if (death != null) {
+            int zoom = PLAYER_ZOOM;
+
+            int dw = death.getWidth() * zoom;
+            int dh = death.getHeight() * zoom;
+
+            if (!deathAnimInit) {
+                initDeathAnimTargets();
+                deathAnimInit = true;
+                deathAnimT = 0f;
+            }
+
+            float u = (DEATH_MOVE_DUR <= 0f) ? 1f : (deathAnimT / DEATH_MOVE_DUR);
+            u = Math.max(0f, Math.min(1f, u));
+
+            float eased = u * u * (3f - 2f * u);
+
+            int x = Math.round(deathFromX + (deathToX - deathFromX) * eased);
+            int y = Math.round(deathFromY + (deathToY - deathFromY) * eased);
+
+            g.drawImage(death, x, y, dw, dh, null);
+        }
+
+        drawGameOverText(g, screenW, screenH);
+    }
+
+    private void initDeathAnimTargets() {
+        int screenW = getWidth();
+        int screenH = getHeight();
+
+        BufferedImage death = Assets.playerDeath;
+        if (death == null) {
+            deathFromX = screenW / 2f;
+            deathFromY = screenH / 2f;
+            deathToX = deathFromX;
+            deathToY = deathFromY;
+            return;
+        }
+
+        int dw = death.getWidth() * PLAYER_ZOOM;
+        int dh = death.getHeight() * PLAYER_ZOOM;
+
+        int roomPixelW = Room.COLS * GameModel.TILE_SIZE;
+        int baseX = (screenW - roomPixelW) / 2;
+        int baseY = GameModel.HUD_HEIGHT;
+
+        float px = model.getPlayerX();
+        float py = model.getPlayerY();
+
+        int normalW = 32 * PLAYER_ZOOM;
+        int normalH = 32 * PLAYER_ZOOM;
+
+        deathFromX = baseX + px + (normalW - dw) / 2f;
+        deathFromY = baseY + py + (normalH - dh) / 2f;
+
+        deathToX = (screenW - dw) / 2f;
+        deathToY = (screenH - dh) / 2f + 30f;
+    }
+
+    private void drawGameOverText(Graphics2D g, int screenW, int screenH) {
+        if (!gameOverUiActive) return;
+
+        float t = gameOverUiT - GAME_OVER_DELAY;
+        if (t <= 0f) return;
+
+        float a = Math.min(1f, t / GAME_OVER_FADE_IN);
+        float alpha = a;
+
+        Color fg = new Color(155, 130, 255);
+        Color shadow = new Color(0, 0, 0, 200);
+
+        Font oldFont = g.getFont();
+        Font titleFont = new Font("Monospaced", Font.BOLD, 64);
+        Font hintFont = new Font("Monospaced", Font.BOLD, 22);
+
+        Composite old = g.getComposite();
+        try {
+            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+
+            String titleLeft = "GAME";
+            String titleRight = "OVER";
+
+            g.setFont(titleFont);
+            FontMetrics fm = g.getFontMetrics();
+
+            int gap = 110;
+            int totalW = fm.stringWidth(titleLeft) + gap + fm.stringWidth(titleRight);
+
+            int x0 = (screenW - totalW) / 2;
+            int y0 = screenH / 2 - 90;
+
+            g.setColor(shadow);
+            g.drawString(titleLeft, x0 + 3, y0 + 3);
+            g.drawString(titleRight, x0 + fm.stringWidth(titleLeft) + gap + 3, y0 + 3);
+
+            g.setColor(fg);
+            g.drawString(titleLeft, x0, y0);
+            g.drawString(titleRight, x0 + fm.stringWidth(titleLeft) + gap, y0);
+
+            String hint = "PREMI X PER RIPROVARE";
+            g.setFont(hintFont);
+            FontMetrics fm2 = g.getFontMetrics();
+
+            int hx = (screenW - fm2.stringWidth(hint)) / 2;
+            int hy = y0 + 70;
+
+            g.setColor(shadow);
+            g.drawString(hint, hx + 2, hy + 2);
+
+            g.setColor(new Color(235, 235, 235));
+            g.drawString(hint, hx, hy);
+
+        } finally {
+            g.setComposite(old);
+            g.setFont(oldFont);
         }
     }
 
@@ -229,27 +380,7 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         }
     }
 
-    private void drawGameOverOverlay(Graphics2D g, int baseX, int baseY, int roomPixelW, int roomPixelH) {
-        String msg = "premere X per riprovare";
-
-        int w = 360;
-        int h = 90;
-        int x = baseX + (roomPixelW - w) / 2;
-        int y = baseY + (roomPixelH - h) / 2;
-
-        g.setColor(new Color(0, 0, 0, 200));
-        g.fillRoundRect(x, y, w, h, 12, 12);
-
-        g.setColor(Color.WHITE);
-        g.drawRoundRect(x, y, w, h, 12, 12);
-
-        // testo (font di default)
-        FontMetrics fm = g.getFontMetrics();
-        int tx = x + (w - fm.stringWidth(msg)) / 2;
-        int ty = y + (h + fm.getAscent()) / 2 - 4;
-
-        g.drawString(msg, tx, ty);
-    }
+    // ============ ENEMY / DROPS ============
 
     private void drawEnemy(Graphics2D g, int roomX, int roomY) {
         if (!model.isEnemyAlive()) return;
@@ -261,11 +392,11 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         int ex = roomX + Math.round(model.getEnemyX());
         int ey = roomY + Math.round(model.getEnemyY());
 
-        int sw = Assets.enemy.getWidth();   // 56
-        int sh = Assets.enemy.getHeight();  // 58
+        int sw = Assets.enemy.getWidth();
+        int sh = Assets.enemy.getHeight();
 
-        int dw = Math.round(sw * ENEMY_SCALE); // 28
-        int dh = Math.round(sh * ENEMY_SCALE); // 29
+        int dw = Math.round(sw * ENEMY_SCALE);
+        int dh = Math.round(sh * ENEMY_SCALE);
 
         Composite old = g.getComposite();
         try {
@@ -297,6 +428,27 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         g.drawImage(Assets.rupee, rx, ry, sw * zoom, sh * zoom, null);
     }
 
+    private void drawPotion(Graphics2D g, int roomX, int roomY) {
+        if (!model.isPotionAlive()) return;
+        if (Assets.potion == null) return;
+
+        if (model.getCurrentRoomIndex() != 7) return;
+        if (model.isTransitioning() || sliding) return;
+
+        int px = roomX + Math.round(model.getPotionX());
+        int py = roomY + Math.round(model.getPotionY());
+
+        int sw = Assets.potion.getWidth();   // 64
+        int sh = Assets.potion.getHeight();  // 72
+
+        int dw = Math.round(sw * POTION_SCALE); // 32
+        int dh = Math.round(sh * POTION_SCALE); // 36
+
+        g.drawImage(Assets.potion, px, py, dw, dh, null);
+    }
+
+    // ============ PLAYER SPRITES / HUD / ROOM RENDER ============
+
     private BufferedImage getPlayerSprite() {
         int dir = switch (model.getFacing()) {
             case DOWN -> Assets.DIR_DOWN;
@@ -306,12 +458,12 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         };
 
         if (model.isAttacking()) {
-            int f = model.getAttackFrame(); // 0..1
+            int f = model.getAttackFrame();
             return Assets.playerAttack[dir][f];
         }
 
         if (model.isMoving()) {
-            int f = model.getAnimFrame(); // 0..1
+            int f = model.getAnimFrame();
             return Assets.playerWalk[dir][f];
         }
 
@@ -367,7 +519,7 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
 
     private void renderShopOverlay(Graphics2D g, int baseX, int baseY, int roomPixelW, int roomPixelH) {
         int w = 360;
-        int h = 200;
+        int h = 220;
         int x = baseX + (roomPixelW - w) / 2;
         int y = baseY + (roomPixelH - h) / 2;
 
@@ -379,8 +531,9 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
 
         g.drawString("Negozio", x + 14, y + 24);
 
+        // Cuore sostituito con Pozione
         String[] items = {
-                "Cuore (+1 vita)          - 15 rupie",
+                "Pozione (+1 vita)        - 5 rupie",
                 "Item 2 (+100 score)      - 10 rupie",
                 "Item 3 (+250 score)      - 25 rupie",
                 "Esci"
@@ -400,6 +553,20 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
                 g.drawString(items[i], x + 26, lineY);
             }
             lineY += 28;
+        }
+
+        // messaggio rosso se non hai abbastanza rupie
+        if (!model.getShopMessage().isBlank() && model.getShopMessageT() > 0f) {
+            String msg = model.getShopMessage();
+            FontMetrics fm = g.getFontMetrics();
+            int mx = x + (w - fm.stringWidth(msg)) / 2;
+            int my = y + h - 36;
+
+            g.setColor(new Color(0, 0, 0, 160));
+            g.fillRoundRect(x + 12, y + h - 54, w - 24, 26, 10, 10);
+
+            g.setColor(new Color(255, 60, 60));
+            g.drawString(msg, mx, my);
         }
 
         g.setColor(new Color(200, 200, 200));
