@@ -27,6 +27,20 @@ public class Assets {
 
     // ---- ENEMY ----
     public static BufferedImage enemy;
+    public static BufferedImage bossPresentation1;
+    public static BufferedImage bossPresentation2;
+    public static BufferedImage bossWalkLR1;
+    public static BufferedImage bossWalkLR2;
+    public static BufferedImage bossWalkLR1Left;
+    public static BufferedImage bossWalkLR2Left;
+    public static BufferedImage bossWalkUp1;
+    public static BufferedImage bossWalkUp2;
+    public static BufferedImage bossWalkDown1;
+    public static BufferedImage bossWalkDown2;
+    public static BufferedImage bossAttackDown1;
+    public static BufferedImage bossAttackDown2;
+    public static BufferedImage bossAttackLR;
+    public static BufferedImage bossAttackLRLeft;
 
     // ---- DROPS ----
     public static BufferedImage rupee;
@@ -92,6 +106,23 @@ public class Assets {
 
         // ---- ENEMY ----
         enemy = loadImage("sprites/enemy_1.png");
+        bossPresentation1 = loadImage("sprites/boss_presentation1.png");
+        bossPresentation2 = loadImage("sprites/boss_presentation2.png");
+
+        bossWalkLR1 = loadImage("sprites/boss_walkleftright1.png");
+        bossWalkLR2 = loadImage("sprites/boss_walkleftright2.png");
+        bossWalkLR1Left = mirrorHorizontally(bossWalkLR1);
+        bossWalkLR2Left = mirrorHorizontally(bossWalkLR2);
+
+        bossWalkUp1 = loadImage("sprites/boss_walkup1.png");
+        bossWalkUp2 = loadImage("sprites/boss_walkup2.png");
+        bossWalkDown1 = loadImage("sprites/boss_walkdown1.png");
+        bossWalkDown2 = loadImage("sprites/boss_walkdown2.png");
+
+        bossAttackDown1 = loadImage("sprites/boss_attack1.png");
+        bossAttackDown2 = loadImage("sprites/boss_attack2.png");
+        bossAttackLR = loadImage("sprites/boss_attackleftright.png");
+        bossAttackLRLeft = mirrorHorizontally(bossAttackLR);
 
         // ---- DROPS ----
         rupee = loadImage("sprites/rupee.png");

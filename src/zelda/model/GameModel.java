@@ -76,6 +76,25 @@ public class GameModel extends ObservableModel {
     private float enemyInvulnT = 0f;
     private float enemyBlinkT = 0f;
 
+    // ---- BOSS (final room) ----
+    private boolean bossAlive = true;
+    private int bossHp = 8;
+    private float bossX = 8 * TILE_SIZE;
+    private float bossY = 4 * TILE_SIZE;
+    private Facing bossFacing = Facing.DOWN;
+    private boolean bossMoving = false;
+    private int bossAnimFrame = 0;
+    private float bossAnimTimer = 0f;
+    private boolean bossAttacking = false;
+    private int bossAttackFrame = 0;
+    private float bossAttackTimer = 0f;
+    private float bossAttackCooldownT = 0f;
+    private boolean bossIntroActive = false;
+    private boolean bossIntroDone = false;
+    private float bossIntroTimer = 0f;
+    private int bossIntroFrame = 0;
+    private boolean playerLocked = false;
+
     // ---- PLAYER INVULN ----
     private float playerInvulnT = 0f;
     private float playerBlinkT = 0f;
@@ -316,6 +335,93 @@ public class GameModel extends ObservableModel {
         requestRepaint();
     }
 
+    // ---- boss ----
+    public boolean isBossAlive() { return bossAlive; }
+    public int getBossHp() { return bossHp; }
+    public float getBossX() { return bossX; }
+    public float getBossY() { return bossY; }
+    public Facing getBossFacing() { return bossFacing; }
+    public boolean isBossMoving() { return bossMoving; }
+    public int getBossAnimFrame() { return bossAnimFrame; }
+    public float getBossAnimTimer() { return bossAnimTimer; }
+    public boolean isBossAttacking() { return bossAttacking; }
+    public int getBossAttackFrame() { return bossAttackFrame; }
+    public float getBossAttackTimer() { return bossAttackTimer; }
+    public float getBossAttackCooldownT() { return bossAttackCooldownT; }
+    public boolean isBossIntroActive() { return bossIntroActive; }
+    public boolean isBossIntroDone() { return bossIntroDone; }
+    public float getBossIntroTimer() { return bossIntroTimer; }
+    public int getBossIntroFrame() { return bossIntroFrame; }
+    public boolean isPlayerLocked() { return playerLocked; }
+
+    public void setBossPos(float x, float y) {
+        bossX = x;
+        bossY = y;
+        requestRepaint();
+    }
+
+    public void setBossFacing(Facing facing) { this.bossFacing = facing; }
+    public void setBossMoving(boolean moving) { this.bossMoving = moving; }
+    public void setBossAnimFrame(int frame) { this.bossAnimFrame = frame; }
+    public void setBossAnimTimer(float timer) { this.bossAnimTimer = timer; }
+    public void setBossAttacking(boolean attacking) { this.bossAttacking = attacking; }
+    public void setBossAttackFrame(int frame) { this.bossAttackFrame = frame; }
+    public void setBossAttackTimer(float timer) { this.bossAttackTimer = timer; }
+    public void setBossAttackCooldownT(float cooldown) { this.bossAttackCooldownT = cooldown; }
+    public void setBossIntroActive(boolean active) { this.bossIntroActive = active; }
+    public void setBossIntroDone(boolean done) { this.bossIntroDone = done; }
+    public void setBossIntroTimer(float timer) { this.bossIntroTimer = timer; }
+    public void setBossIntroFrame(int frame) { this.bossIntroFrame = frame; }
+    public void setPlayerLocked(boolean locked) { this.playerLocked = locked; }
+
+    public void startBossIntro() {
+        bossIntroActive = true;
+        bossIntroTimer = 0f;
+        bossIntroFrame = 0;
+        playerLocked = true;
+        requestRepaint();
+    }
+
+    public void stopBossIntro() {
+        bossIntroActive = false;
+        bossIntroDone = true;
+        bossIntroTimer = 0f;
+        bossIntroFrame = 0;
+        playerLocked = false;
+        requestRepaint();
+    }
+
+    public void resetBossEncounter() {
+        bossAlive = true;
+        bossHp = 8;
+        bossX = 8 * TILE_SIZE;
+        bossY = 4 * TILE_SIZE;
+        bossFacing = Facing.DOWN;
+        bossMoving = false;
+        bossAnimFrame = 0;
+        bossAnimTimer = 0f;
+        bossAttacking = false;
+        bossAttackFrame = 0;
+        bossAttackTimer = 0f;
+        bossAttackCooldownT = 0f;
+        bossIntroActive = false;
+        bossIntroDone = false;
+        bossIntroTimer = 0f;
+        bossIntroFrame = 0;
+        playerLocked = false;
+    }
+
+    public void hitBoss(int dmg) {
+        if (!bossAlive) return;
+        bossHp = Math.max(0, bossHp - dmg);
+        if (bossHp == 0) {
+            bossAlive = false;
+            bossAttacking = false;
+            bossMoving = false;
+        }
+        requestRepaint();
+    }
+
     // ---- player invuln ----
     public boolean isPlayerInvulnerable() { return playerInvulnT > 0f; }
     public boolean isPlayerBlinking() { return playerBlinkT > 0f; }
@@ -468,6 +574,8 @@ public class GameModel extends ObservableModel {
         enemyDirTimer = 0f;
         enemyInvulnT = 0f;
         enemyBlinkT = 0f;
+        resetBossEncounter();
+        playerLocked = false;
 
         fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
         fireEvent(new GameEvent(GameEventType.ROOM_CHANGED));
