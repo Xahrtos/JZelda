@@ -23,6 +23,7 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
     // ---- ENEMY / DROPS RENDER ----
     private static final float ENEMY_SCALE = 0.5f;  // 56x58 -> 28x29
     private static final float POTION_SCALE = 0.5f; // 64x72 -> 32x36
+    private static final int BOSS_ROOM_INDEX = RoomManager.PLAY_LAST_INDEX;
 
     // ---- GAME OVER UI ----
     private boolean gameOverUiActive = false;
@@ -201,6 +202,7 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
 
             // draw order: enemy/drops sotto
             drawEnemy(g, roomX, roomY);
+            drawBoss(g, roomX, roomY);
             drawRupee(g, roomX, roomY);
             drawPotion(g, roomX, roomY);
 
@@ -237,6 +239,10 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
             // ---- SHOP OVERLAY ----
             if (model.isShopOpen()) {
                 renderShopOverlay(g, baseX, baseY, roomPixelW, roomPixelH);
+            }
+
+            if (model.isBossIntroActive() && model.getCurrentRoomIndex() == BOSS_ROOM_INDEX) {
+                renderBossIntroOverlay(g, baseX, baseY, roomPixelW);
             }
 
             g.setColor(new Color(255, 255, 255, 40));
@@ -495,6 +501,20 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         g.drawImage(Assets.rupee, rx, ry, sw * zoom, sh * zoom, null);
     }
 
+    private void drawBoss(Graphics2D g, int roomX, int roomY) {
+        if (!model.isBossAlive()) return;
+        if (model.getCurrentRoomIndex() != BOSS_ROOM_INDEX) return;
+        if (model.isTransitioning() || sliding) return;
+
+        BufferedImage sprite = getBossSprite();
+        if (sprite == null) return;
+
+        int bx = roomX + Math.round(model.getBossX());
+        int by = roomY + Math.round(model.getBossY());
+
+        g.drawImage(sprite, bx, by, 32, 32, null);
+    }
+
     private void drawPotion(Graphics2D g, int roomX, int roomY) {
         if (!model.isPotionAlive()) return;
         if (Assets.potion == null) return;
@@ -535,6 +555,33 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         return Assets.playerIdle[dir];
     }
 
+    private BufferedImage getBossSprite() {
+        if (model.isBossIntroActive()) {
+            return model.getBossIntroFrame() == 1 ? Assets.bossPresentation2 : Assets.bossPresentation1;
+        }
+
+        GameModel.Facing facing = model.getBossFacing();
+        int frame = model.getBossAnimFrame();
+
+        if (model.isBossAttacking()) {
+            if (facing == GameModel.Facing.LEFT) return Assets.bossAttackLRLeft;
+            if (facing == GameModel.Facing.RIGHT) return Assets.bossAttackLR;
+            return model.getBossAttackFrame() == 1 ? Assets.bossAttackDown2 : Assets.bossAttackDown1;
+        }
+
+        if (model.isBossMoving()) {
+            if (facing == GameModel.Facing.LEFT) return frame == 0 ? Assets.bossWalkLR1Left : Assets.bossWalkLR2Left;
+            if (facing == GameModel.Facing.RIGHT) return frame == 0 ? Assets.bossWalkLR1 : Assets.bossWalkLR2;
+            if (facing == GameModel.Facing.UP) return frame == 0 ? Assets.bossWalkUp1 : Assets.bossWalkUp2;
+            return frame == 0 ? Assets.bossWalkDown1 : Assets.bossWalkDown2;
+        }
+
+        if (facing == GameModel.Facing.LEFT) return Assets.bossWalkLR1Left;
+        if (facing == GameModel.Facing.RIGHT) return Assets.bossWalkLR1;
+        if (facing == GameModel.Facing.UP) return Assets.bossWalkUp1;
+        return Assets.bossWalkDown1;
+    }
+
     // ===========================
     // HUD / ROOM RENDER
     // ===========================
@@ -548,6 +595,26 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         g.drawString("Vite: " + model.getLives() +
                 "  Rupie: " + model.getRupees() +
                 "  Score: " + model.getScore(), 10, 44);
+    }
+
+    private void renderBossIntroOverlay(Graphics2D g, int baseX, int baseY, int roomPixelW) {
+        String msg = "MagHari L'Aurea!";
+        Font old = g.getFont();
+        g.setFont(new Font("Monospaced", Font.BOLD, 26));
+        FontMetrics fm = g.getFontMetrics();
+
+        int padX = 16;
+        int boxW = fm.stringWidth(msg) + padX * 2;
+        int boxH = 38;
+        int x = baseX + (roomPixelW - boxW) / 2;
+        int y = baseY + 18;
+
+        g.setColor(new Color(0, 0, 0, 185));
+        g.fillRoundRect(x, y, boxW, boxH, 10, 10);
+
+        g.setColor(Color.WHITE);
+        g.drawString(msg, x + padX, y + 26);
+        g.setFont(old);
     }
 
     private void renderRoomFloor(Graphics2D g, Room room, int ox, int oy) {

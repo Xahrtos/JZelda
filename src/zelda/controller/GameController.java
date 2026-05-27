@@ -38,6 +38,7 @@ public class GameController {
 
     private static final int PLAY_LAST_INDEX = RoomManager.PLAY_LAST_INDEX;
     private static final int SHOP_INDEX = RoomManager.SHOP_INDEX;
+    private static final int BOSS_ROOM_INDEX = RoomManager.PLAY_LAST_INDEX;
 
     private static final int ARENA_INDEX = RoomManager.SHOP_ROOM_INDEX; // 4
 
@@ -96,6 +97,23 @@ public class GameController {
     private static final float PLAYER_INVULN_SECONDS = 0.80f;
     private static final float PLAYER_BLINK_SECONDS = 0.80f;
 
+    // ---- BOSS (final room) ----
+    private static final int BOSS_W = 32;
+    private static final int BOSS_H = 32;
+    private static final float BOSS_SPEED = 160f;
+    private static final float BOSS_WALK_FRAME_TIME = 0.28f;
+    private static final float BOSS_ATTACK_TOTAL_TIME = 2.0f;
+    private static final float BOSS_ATTACK_HIT_START = 1.0f;
+    private static final float BOSS_ATTACK_HIT_END = 1.45f;
+    private static final float BOSS_ATTACK_COOLDOWN = 0.55f;
+    private static final float BOSS_ATTACK_RANGE = 48f;
+    private static final int BOSS_BOUND_PAD = 4;
+    private static final int BOSS_ATTACK_REACH = 26;
+    private static final int BOSS_ATTACK_THICKNESS = 20;
+    private static final float BOSS_INTRO_FRAME_TIME = 0.45f;
+
+    private int lastRoomIndex = -1;
+
     public GameController(GameModel model) {
         this.model = model;
     }
@@ -121,6 +139,7 @@ public class GameController {
             if (startPressed) {
                 model.startGame();
             }
+            lastRoomIndex = model.getCurrentRoomIndex();
             startPressed = false;
             retryPressed = false;
             interactPressed = false;
@@ -133,12 +152,19 @@ public class GameController {
         if (model.getLives() <= 0) {
             if (retryPressed) model.resetRun();
 
+            lastRoomIndex = model.getCurrentRoomIndex();
             startPressed = false;
             retryPressed = false;
             interactPressed = false;
             escPressed = false;
             attackPressed = false;
             return;
+        }
+
+        int roomIndex = model.getCurrentRoomIndex();
+        if (roomIndex != lastRoomIndex) {
+            onRoomEntered(roomIndex);
+            lastRoomIndex = roomIndex;
         }
 
         if (model.isTransitioning()) {
@@ -170,6 +196,19 @@ public class GameController {
         model.updateRupeeAnim(dt);
         model.updatePotionAnim(dt);
         model.updatePlayerTimers(dt);
+        updateBoss(dt);
+        checkBossAttackDamage();
+
+        if (model.isPlayerLocked()) {
+            resetWalkAnim();
+            resetAttackAnim();
+            startPressed = false;
+            retryPressed = false;
+            interactPressed = false;
+            escPressed = false;
+            attackPressed = false;
+            return;
+        }
 
         boolean nearNpc = canInteractWithNpc();
         model.setShowInteractPrompt(nearNpc);
@@ -242,6 +281,166 @@ public class GameController {
         checkEnemyTouchDamage();
         checkRupeePickup();
         checkPotionPickup();
+    }
+
+    private void onRoomEntered(int roomIndex) {
+        if (roomIndex == BOSS_ROOM_INDEX &&
+                model.isBossAlive() &&
+                !model.isBossIntroActive() &&
+                !model.isBossIntroDone()) {
+            model.startBossIntro();
+        }
+    }
+
+    private void updateBoss(float dt) {
+        if (model.getCurrentRoomIndex() != BOSS_ROOM_INDEX) return;
+        if (!model.isBossAlive()) return;
+
+        if (model.isBossIntroActive()) {
+            float introT = model.getBossIntroTimer() + dt;
+            model.setBossIntroTimer(introT);
+
+            int frame = 0;
+            if (introT >= BOSS_INTRO_FRAME_TIME) frame = 1;
+            if (introT >= BOSS_INTRO_FRAME_TIME * 2f) frame = 2;
+            model.setBossIntroFrame(frame);
+
+            if (introT >= BOSS_INTRO_FRAME_TIME * 3f) {
+                model.stopBossIntro();
+            }
+            model.requestRepaint();
+            return;
+        }
+
+        if (model.getBossAttackCooldownT() > 0f) {
+            model.setBossAttackCooldownT(Math.max(0f, model.getBossAttackCooldownT() - dt));
+        }
+
+        if (model.isBossAttacking()) {
+            float attackT = model.getBossAttackTimer() + dt;
+            model.setBossAttackTimer(attackT);
+            model.setBossAttackFrame(attackT >= BOSS_ATTACK_HIT_START ? 1 : 0);
+            model.setBossMoving(false);
+
+            if (attackT >= BOSS_ATTACK_TOTAL_TIME) {
+                model.setBossAttacking(false);
+                model.setBossAttackFrame(0);
+                model.setBossAttackTimer(0f);
+                model.setBossAttackCooldownT(BOSS_ATTACK_COOLDOWN);
+            }
+            model.requestRepaint();
+            return;
+        }
+
+        float px = model.getPlayerX();
+        float py = model.getPlayerY();
+        float bx = model.getBossX();
+        float by = model.getBossY();
+
+        float dx = px - bx;
+        float dy = py - by;
+        float dist2 = dx * dx + dy * dy;
+        float attackR2 = BOSS_ATTACK_RANGE * BOSS_ATTACK_RANGE;
+
+        if (dist2 <= attackR2 && model.getBossAttackCooldownT() <= 0f) {
+            model.setBossAttacking(true);
+            model.setBossAttackTimer(0f);
+            model.setBossAttackFrame(0);
+            model.setBossMoving(false);
+            model.requestRepaint();
+            return;
+        }
+
+        float dist = (float) Math.sqrt(Math.max(0.0001f, dist2));
+        float vx = (dx / dist) * BOSS_SPEED;
+        float vy = (dy / dist) * BOSS_SPEED;
+
+        float nextX = bx + vx * dt;
+        float nextY = by + vy * dt;
+
+        int roomW = Room.COLS * GameModel.TILE_SIZE;
+        int roomH = Room.ROWS * GameModel.TILE_SIZE;
+        float minX = GameModel.TILE_SIZE + BOSS_BOUND_PAD;
+        float minY = GameModel.TILE_SIZE + BOSS_BOUND_PAD;
+        float maxX = roomW - GameModel.TILE_SIZE - BOSS_W - BOSS_BOUND_PAD;
+        float maxY = roomH - GameModel.TILE_SIZE - BOSS_H - BOSS_BOUND_PAD;
+
+        if (nextX < minX) nextX = minX;
+        if (nextY < minY) nextY = minY;
+        if (nextX > maxX) nextX = maxX;
+        if (nextY > maxY) nextY = maxY;
+
+        model.setBossPos(nextX, nextY);
+        model.setBossMoving(true);
+
+        if (Math.abs(vx) > Math.abs(vy)) {
+            model.setBossFacing(vx < 0f ? GameModel.Facing.LEFT : GameModel.Facing.RIGHT);
+        } else {
+            model.setBossFacing(vy < 0f ? GameModel.Facing.UP : GameModel.Facing.DOWN);
+        }
+
+        float frameT = model.getBossAnimTimer() + dt;
+        if (frameT >= BOSS_WALK_FRAME_TIME) {
+            frameT = 0f;
+            model.setBossAnimFrame((model.getBossAnimFrame() + 1) % 2);
+        }
+        model.setBossAnimTimer(frameT);
+    }
+
+    private void checkBossAttackDamage() {
+        if (model.getCurrentRoomIndex() != BOSS_ROOM_INDEX) return;
+        if (!model.isBossAlive()) return;
+        if (!model.isBossAttacking()) return;
+        if (model.isBossIntroActive()) return;
+        if (model.isPlayerInvulnerable()) return;
+
+        float t = model.getBossAttackTimer();
+        if (t < BOSS_ATTACK_HIT_START || t > BOSS_ATTACK_HIT_END) return;
+
+        Rectangle hitbox = computeBossAttackHitbox();
+        Rectangle playerFeet = new Rectangle(
+                Math.round(model.getPlayerX() + HIT_OFF_X),
+                Math.round(model.getPlayerY() + HIT_OFF_Y),
+                HIT_W,
+                HIT_H
+        );
+
+        if (hitbox.intersects(playerFeet)) {
+            model.hitPlayer(1, PLAYER_INVULN_SECONDS, PLAYER_BLINK_SECONDS);
+        }
+    }
+
+    private Rectangle computeBossAttackHitbox() {
+        int bx = Math.round(model.getBossX());
+        int by = Math.round(model.getBossY());
+        GameModel.Facing facing = model.getBossFacing();
+
+        return switch (facing) {
+            case LEFT -> new Rectangle(
+                    bx - BOSS_ATTACK_REACH,
+                    by + (BOSS_H - BOSS_ATTACK_THICKNESS) / 2,
+                    BOSS_ATTACK_REACH,
+                    BOSS_ATTACK_THICKNESS
+            );
+            case RIGHT -> new Rectangle(
+                    bx + BOSS_W,
+                    by + (BOSS_H - BOSS_ATTACK_THICKNESS) / 2,
+                    BOSS_ATTACK_REACH,
+                    BOSS_ATTACK_THICKNESS
+            );
+            case UP -> new Rectangle(
+                    bx + (BOSS_W - BOSS_ATTACK_THICKNESS) / 2,
+                    by - BOSS_ATTACK_REACH,
+                    BOSS_ATTACK_THICKNESS,
+                    BOSS_ATTACK_REACH
+            );
+            case DOWN -> new Rectangle(
+                    bx + (BOSS_W - BOSS_ATTACK_THICKNESS) / 2,
+                    by + BOSS_H,
+                    BOSS_ATTACK_THICKNESS,
+                    BOSS_ATTACK_REACH
+            );
+        };
     }
 
     // -------------------- ENEMY --------------------
@@ -371,6 +570,7 @@ public class GameController {
         }
 
         tryHitEnemyWithSword();
+        tryHitBossWithSword();
 
         if (atkTimer >= ATTACK_TOTAL_TIME) {
             resetAttackAnim();
@@ -433,8 +633,31 @@ public class GameController {
             case LEFT -> x -= SWORD_REACH;
             case RIGHT -> x += SWORD_REACH;
         }
-
         return new Rectangle(x, y, SWORD_W, SWORD_H);
+    }
+
+    private void tryHitBossWithSword() {
+        if (!model.isBossAlive()) return;
+        if (model.getCurrentRoomIndex() != BOSS_ROOM_INDEX) return;
+        if (model.isBossIntroActive()) return;
+        if (!model.isAttacking() || model.getAttackFrame() != 1) return;
+        if (attackDidHitThisSwing) return;
+
+        Rectangle sword = computeSwordHitbox();
+        Rectangle boss = new Rectangle(
+                Math.round(model.getBossX()),
+                Math.round(model.getBossY()),
+                BOSS_W,
+                BOSS_H
+        );
+
+        if (sword.intersects(boss)) {
+            attackDidHitThisSwing = true;
+            model.hitBoss(1);
+            if (!model.isBossAlive()) {
+                model.addScore(1000);
+            }
+        }
     }
 
     // -------------------- PLAYER DAMAGE --------------------
