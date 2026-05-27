@@ -35,6 +35,17 @@ public class Assets {
     // ---- GAME OVER ----
     public static BufferedImage playerDeath;
 
+    // ---- WALLS ----
+    public static BufferedImage wallAngle;
+    public static BufferedImage wallStraight;
+
+    public static BufferedImage wallAngle0, wallAngle90, wallAngle180, wallAngle270;
+    public static BufferedImage wallStraight0, wallStraight90, wallStraight180, wallStraight270;
+
+    // ---- TITLE ----
+    public static BufferedImage tsBg;
+    public static BufferedImage floor;
+
     public static void load() {
         // ---- IDLE ----
         BufferedImage idleDown = loadImage("sprites/idle_down.png");
@@ -88,6 +99,26 @@ public class Assets {
 
         // ---- GAME OVER ----
         playerDeath = loadImage("sprites/player_death.png");
+
+        // ---- WALLS ----
+        wallAngle = loadImage("sprites/angle.png");
+        wallStraight = loadImage("sprites/straight_wall.png");
+        floor = loadImage("sprites/floor.png");
+        
+        
+
+        wallAngle0 = wallAngle;
+        wallAngle90 = rotate90(wallAngle);
+        wallAngle180 = rotate180(wallAngle);
+        wallAngle270 = rotate270(wallAngle);
+
+        wallStraight0 = wallStraight;
+        wallStraight90 = rotate90(wallStraight);
+        wallStraight180 = rotate180(wallStraight);
+        wallStraight270 = rotate270(wallStraight);
+
+        // ---- TITLE ----
+        tsBg = loadImage("sprites/ts_bg.png");
     }
 
     private static BufferedImage mirrorHorizontally(BufferedImage src) {
@@ -105,6 +136,48 @@ public class Assets {
         return dst;
     }
 
+    private static BufferedImage rotate90(BufferedImage src) {
+        BufferedImage dst = new BufferedImage(src.getHeight(), src.getWidth(), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = dst.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+            g.translate(dst.getWidth(), 0);
+            g.rotate(Math.PI / 2);
+            g.drawImage(src, 0, 0, null);
+        } finally {
+            g.dispose();
+        }
+        return dst;
+    }
+
+    private static BufferedImage rotate180(BufferedImage src) {
+        BufferedImage dst = new BufferedImage(src.getWidth(), src.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = dst.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+            g.translate(dst.getWidth(), dst.getHeight());
+            g.rotate(Math.PI);
+            g.drawImage(src, 0, 0, null);
+        } finally {
+            g.dispose();
+        }
+        return dst;
+    }
+
+    private static BufferedImage rotate270(BufferedImage src) {
+        BufferedImage dst = new BufferedImage(src.getHeight(), src.getWidth(), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = dst.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+            g.translate(0, dst.getHeight());
+            g.rotate(-Math.PI / 2);
+            g.drawImage(src, 0, 0, null);
+        } finally {
+            g.dispose();
+        }
+        return dst;
+    }
+
     public static BufferedImage loadImage(String pathInsideAssets) {
         String fullPath = "/" + pathInsideAssets;
         try {
@@ -112,7 +185,7 @@ public class Assets {
             if (url == null) {
                 throw new RuntimeException(
                         "Immagine non trovata nel classpath: " + fullPath + "\n" +
-                        "Controlla che il file sia in src/assets/sprites/ e che src/assets sia Source Folder."
+                                "Controlla che il file sia in src/assets/sprites/ e che src/assets sia Source Folder."
                 );
             }
 

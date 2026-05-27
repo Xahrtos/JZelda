@@ -2,6 +2,7 @@ package zelda.controller;
 
 import zelda.model.GameModel;
 import zelda.model.Room;
+import zelda.model.RoomManager;
 import zelda.model.SlideDir;
 import zelda.profile.LeaderboardEntry;
 import zelda.profile.ProfileStore;
@@ -18,7 +19,8 @@ public class GameController {
     private boolean interactPressed; // E
     private boolean escPressed;      // ESC
     private boolean attackPressed;   // SPACE
-    private boolean retryPressed;    // X (game over)
+    private boolean retryPressed;    // X
+    private boolean startPressed;    // ENTER
 
     private final float speed = 200f;
 
@@ -28,21 +30,24 @@ public class GameController {
 
     private static final int HIT_W = 16;
     private static final int HIT_H = 10;
+    
+    private static final int SOLID_PAD = 4;
 
     private static final int HIT_OFF_X = (SPRITE_W - HIT_W) / 2; // 8
     private static final int HIT_OFF_Y = SPRITE_H - HIT_H;       // 22
 
-    private static final int PLAY_LAST_INDEX = 7;
-    private static final int SHOP_INDEX = 8;
+    private static final int PLAY_LAST_INDEX = RoomManager.PLAY_LAST_INDEX;
+    private static final int SHOP_INDEX = RoomManager.SHOP_INDEX;
+
+    private static final int ARENA_INDEX = RoomManager.SHOP_ROOM_INDEX; // 4
 
     // SHOP: 0..3 (3=Exit)
     private static final int SHOP_EXIT_INDEX = 3;
 
-    // Shop costs (Cuore rimosso: ora è pozione)
+    // Shop costs
     private static final int COST_POTION = 5;
     private static final int COST_ITEM2 = 10;
     private static final int COST_ITEM3 = 25;
-
     private static final float SHOP_ERR_MSG_SECONDS = 1.2f;
 
     private final ProfileStore profileStore = ProfileStore.getInstance();
@@ -58,9 +63,7 @@ public class GameController {
     private static final float ATTACK_FRAME_TIME = 0.10f;
     private static final float ATTACK_TOTAL_TIME = 0.22f;
 
-    // ---- ENEMY (solo room 7) ----
-    private static final int ENEMY_ROOM_INDEX = 7;
-
+    // ---- ENEMY (arena room) ----
     private static final int ENEMY_DRAW_W = 28;
     private static final int ENEMY_DRAW_H = 29;
 
@@ -76,7 +79,7 @@ public class GameController {
 
     private static final int SWORD_W = 18;
     private static final int SWORD_H = 18;
-    private static final int SWORD_REACH = 50;
+    private static final int SWORD_REACH = 32;
 
     private boolean attackDidHitThisSwing = false;
 
@@ -102,18 +105,35 @@ public class GameController {
     public void setLeft(boolean v) { left = v; }
     public void setRight(boolean v) { right = v; }
 
-    public void pressInteract() { interactPressed = true; }
-    public void pressEsc() { escPressed = true; }
-    public void pressAttack() { attackPressed = true; }
-    public void pressRetry() { retryPressed = true; }
+    // one-shot binds
+    public void pressInteract() { interactPressed = true; } // E
+    public void pressEsc() { escPressed = true; }           // ESC
+    public void pressAttack() { attackPressed = true; }     // SPACE
+    public void pressRetry() { retryPressed = true; }       // X
+    public void pressStart() { startPressed = true; }       // ENTER
 
     public void debugWin() { simulateEndGame(true); }
     public void debugLose() { simulateEndGame(false); }
 
     public void update(float dt) {
-        // GAME OVER
+        // TITLE: start con ENTER
+        if (model.isTitle()) {
+            if (startPressed) {
+                model.startGame();
+            }
+            startPressed = false;
+            retryPressed = false;
+            interactPressed = false;
+            escPressed = false;
+            attackPressed = false;
+            return;
+        }
+
+        // GAME OVER: retry con X
         if (model.getLives() <= 0) {
             if (retryPressed) model.resetRun();
+
+            startPressed = false;
             retryPressed = false;
             interactPressed = false;
             escPressed = false;
@@ -124,10 +144,11 @@ public class GameController {
         if (model.isTransitioning()) {
             resetWalkAnim();
             resetAttackAnim();
+            startPressed = false;
+            retryPressed = false;
             interactPressed = false;
             escPressed = false;
             attackPressed = false;
-            retryPressed = false;
             return;
         }
 
@@ -136,14 +157,15 @@ public class GameController {
             resetAttackAnim();
             model.updateShopTimers(dt);
             updateShopInput();
+
+            startPressed = false;
+            retryPressed = false;
             interactPressed = false;
             escPressed = false;
             attackPressed = false;
-            retryPressed = false;
             return;
         }
 
-        // timers
         model.updateEnemyTimers(dt);
         model.updateRupeeAnim(dt);
         model.updatePotionAnim(dt);
@@ -158,6 +180,7 @@ public class GameController {
             escPressed = false;
             attackPressed = false;
             retryPressed = false;
+            startPressed = false;
             return;
         }
 
@@ -168,10 +191,11 @@ public class GameController {
             checkRupeePickup();
             checkPotionPickup();
 
+            startPressed = false;
+            retryPressed = false;
             interactPressed = false;
             escPressed = false;
             attackPressed = false;
-            retryPressed = false;
             return;
         }
 
@@ -182,17 +206,19 @@ public class GameController {
             checkRupeePickup();
             checkPotionPickup();
 
+            startPressed = false;
+            retryPressed = false;
             interactPressed = false;
             escPressed = false;
             attackPressed = false;
-            retryPressed = false;
             return;
         }
 
+        startPressed = false;
+        retryPressed = false;
         interactPressed = false;
         escPressed = false;
         attackPressed = false;
-        retryPressed = false;
 
         float beforeX = model.getPlayerX();
         float beforeY = model.getPlayerY();
@@ -222,7 +248,7 @@ public class GameController {
 
     private void updateEnemy(float dt) {
         if (!model.isEnemyAlive()) return;
-        if (model.getCurrentRoomIndex() != ENEMY_ROOM_INDEX) return;
+        if (model.getCurrentRoomIndex() != ARENA_INDEX) return;
 
         if (Math.abs(model.getEnemyVx()) < 0.001f && Math.abs(model.getEnemyVy()) < 0.001f) {
             pickNewEnemyDirection();
@@ -354,7 +380,7 @@ public class GameController {
 
     private void tryHitEnemyWithSword() {
         if (!model.isEnemyAlive()) return;
-        if (model.getCurrentRoomIndex() != ENEMY_ROOM_INDEX) return;
+        if (model.getCurrentRoomIndex() != ARENA_INDEX) return;
 
         if (!model.isAttacking() || model.getAttackFrame() != 1) return;
         if (attackDidHitThisSwing) return;
@@ -378,12 +404,10 @@ public class GameController {
                 float centerX = model.getEnemyX() + ENEMY_DRAW_W / 2f;
                 float centerY = model.getEnemyY() + ENEMY_DRAW_H / 2f;
 
-                // rupee a sinistra
                 float rupeeX = centerX - DROP_SEPARATION_X - 4f;
                 float rupeeY = centerY - 7f;
                 model.spawnRupee(rupeeX, rupeeY);
 
-                // potion a destra, con probabilità
                 if (Math.random() < POTION_DROP_CHANCE) {
                     float potionX = centerX + DROP_SEPARATION_X - (POTION_DRAW_W / 2f);
                     float potionY = centerY - (POTION_DRAW_H / 2f);
@@ -417,7 +441,7 @@ public class GameController {
 
     private void checkEnemyTouchDamage() {
         if (!model.isEnemyAlive()) return;
-        if (model.getCurrentRoomIndex() != ENEMY_ROOM_INDEX) return;
+        if (model.getCurrentRoomIndex() != ARENA_INDEX) return;
         if (model.isPlayerInvulnerable()) return;
 
         Rectangle enemy = new Rectangle(
@@ -443,7 +467,7 @@ public class GameController {
 
     private void checkRupeePickup() {
         if (!model.isRupeeAlive()) return;
-        if (model.getCurrentRoomIndex() != ENEMY_ROOM_INDEX) return;
+        if (model.getCurrentRoomIndex() != ARENA_INDEX) return;
         if (model.isRupeeAnimating()) return;
 
         Rectangle rupeeRect = new Rectangle(
@@ -468,7 +492,7 @@ public class GameController {
 
     private void checkPotionPickup() {
         if (!model.isPotionAlive()) return;
-        if (model.getCurrentRoomIndex() != ENEMY_ROOM_INDEX) return;
+        if (model.getCurrentRoomIndex() != ARENA_INDEX) return;
         if (model.isPotionAnimating()) return;
 
         Rectangle potionRect = new Rectangle(
@@ -528,7 +552,7 @@ public class GameController {
         int cost;
         if (sel == 0) cost = COST_POTION;
         else if (sel == 1) cost = COST_ITEM2;
-        else cost = COST_ITEM3; // sel == 2
+        else cost = COST_ITEM3;
 
         if (model.getRupees() < cost) {
             model.showShopMessage("NON HAI ABBASTANZA RUPIE!", SHOP_ERR_MSG_SECONDS);
@@ -537,13 +561,9 @@ public class GameController {
 
         model.addRupees(-cost);
 
-        if (sel == 0) {
-            model.addLives(1); // POTION
-        } else if (sel == 1) {
-            model.addScore(100);
-        } else if (sel == 2) {
-            model.addScore(250);
-        }
+        if (sel == 0) model.addLives(1);
+        else if (sel == 1) model.addScore(100);
+        else if (sel == 2) model.addScore(250);
     }
 
     // -------------------- COLLISION / NPC --------------------
@@ -576,14 +596,32 @@ public class GameController {
         float nextX = model.getPlayerX() + dx;
         float nextY = model.getPlayerY() + dy;
 
+        // ---- CUSCINETTI VISIVI PER EVITARE COMPENETRAZIONI ----
+        // Aumenta questi valori se noti che lo sprite sfora ancora di qualche pixel
+        int visualPadY = 14; // Protegge la testa del PG quando cammina verso l'alto
+        int visualPadX = 4;  // Protegge le spalle quando cammina verso sinistra
+
         float hbX = nextX + HIT_OFF_X;
         float hbY = nextY + HIT_OFF_Y;
 
-        float leftEdge = hbX;
-        float rightEdge = hbX + HIT_W - 1;
-        float topEdge = hbY;
-        float bottomEdge = hbY + HIT_H - 1;
+        // Applichiamo i pad standard di gioco
+        float leftEdge = hbX - SOLID_PAD;
+        float rightEdge = hbX + HIT_W - 1 + SOLID_PAD;
+        float topEdge = hbY - SOLID_PAD;
+        float bottomEdge = hbY + HIT_H - 1 + SOLID_PAD;
 
+        // Modifichiamo i bordi di controllo in base alla direzione per anticipare il blocco visivo
+        if (dy < 0) { // Se si muove verso l'ALTO
+            topEdge -= visualPadY;
+        }
+        if (dx < 0) { // Se si muove verso SINISTRA
+            leftEdge -= visualPadX;
+        }
+        if (dx > 0) { // Se si muove verso DESTRA
+            rightEdge += visualPadX;
+        }
+
+        // Controllo collisioni sui 4 angoli modificati
         boolean collidesTiles =
                 collidesAt(leftEdge, topEdge) ||
                 collidesAt(rightEdge, topEdge) ||
@@ -616,6 +654,10 @@ public class GameController {
     private boolean collidesAt(float px, float py) {
         int tx = (int) (px / GameModel.TILE_SIZE);
         int ty = (int) (py / GameModel.TILE_SIZE);
+
+        // fuori bounds = solido
+        if (tx < 0 || ty < 0 || tx >= Room.COLS || ty >= Room.ROWS) return true;
+
         return model.getRoom().isSolidTile(tx, ty);
     }
 
@@ -673,7 +715,7 @@ public class GameController {
         if (up && atTopEdgeRow) {
             boolean isDoor = !model.getRoom().isSolidTile(tileX, 0);
 
-            if (curr == PLAY_LAST_INDEX && isDoor) {
+            if (curr == ARENA_INDEX && isDoor) {
                 model.beginRoomTransition(SHOP_INDEX, SlideDir.UP);
                 model.movePlayerTo(px, clampYMax);
                 return;
@@ -688,7 +730,7 @@ public class GameController {
             boolean isDoor = !model.getRoom().isSolidTile(tileX, Room.ROWS - 1);
 
             if (curr == SHOP_INDEX && isDoor) {
-                model.beginRoomTransition(PLAY_LAST_INDEX, SlideDir.DOWN);
+                model.beginRoomTransition(ARENA_INDEX, SlideDir.DOWN);
                 model.movePlayerTo(px, clampYMin);
                 return;
             }

@@ -1,16 +1,32 @@
 package zelda.model;
 
-/**
- * Model principale del gioco (MVC).
- */
 public class GameModel extends ObservableModel {
 
     public static final int TILE_SIZE = 32;
     public static final int HUD_HEIGHT = 64;
 
-    int start = 8;
+    // ---- APP STATE ----
+    public enum AppState { TITLE, PLAY }
+    private AppState appState = AppState.TITLE;
+
+    public AppState getAppState() { return appState; }
+    public boolean isTitle() { return appState == AppState.TITLE; }
+    public boolean isPlaying() { return appState == AppState.PLAY; }
+
+    public void startGame() {
+        appState = AppState.PLAY;
+        resetRun();
+    }
+
+    public void goToTitle() {
+        appState = AppState.TITLE;
+        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
+        fireEvent(new GameEvent(GameEventType.ROOM_CHANGED));
+        fireEvent(new GameEvent(GameEventType.PLAYER_MOVED));
+    }
+
     private final RoomManager roomManager = new RoomManager();
-    private int currentRoomIndex = start;
+    private int currentRoomIndex = 0;
 
     private boolean transitioning = false;
     private SlideDir slideDir = SlideDir.LEFT;
@@ -32,15 +48,17 @@ public class GameModel extends ObservableModel {
     private boolean shopOpen = false;
     private int shopSelectionIndex = 0; // 0..3 (3=Exit)
 
-    // messaggio shop (es. soldi insufficienti)
+    // shop message (es. soldi insufficienti)
     private String shopMessage = "";
     private float shopMessageT = 0f;
 
+    // ---- PLAYER ANIM ----
     public enum Facing { DOWN, UP, LEFT, RIGHT }
     private Facing facing = Facing.DOWN;
     private boolean moving = false;
     private int animFrame = 0;
 
+    // ---- ATTACK ----
     private boolean attacking = false;
     private int attackFrame = 0;
 
@@ -84,38 +102,45 @@ public class GameModel extends ObservableModel {
     private float potionHopHeight = 14f;
     private float potionLandY = 0f;
 
-    // -------- Player anim getters/setters --------
+    // ---- basic getters ----
+    public Room getRoom() { return roomManager.getRoom(currentRoomIndex); }
+    public Room getNextRoom() { return roomManager.getRoom(nextRoomIndex); }
+    public int getCurrentRoomIndex() { return currentRoomIndex; }
+
+    public boolean isTransitioning() { return transitioning; }
+    public SlideDir getSlideDir() { return slideDir; }
+
+    public float getPlayerX() { return playerX; }
+    public float getPlayerY() { return playerY; }
+
+    public int getLives() { return lives; }
+    public int getRupees() { return rupees; }
+    public int getScore() { return score; }
+
+    public String getProfileNickname() { return profileNickname; }
+    public String getProfileAvatarPath() { return profileAvatarPath; }
+    public String getProfileId() { return profileId; }
+
     public Facing getFacing() { return facing; }
-    public void setFacing(Facing f) { this.facing = f; }
+    public void setFacing(Facing f) { facing = f; }
 
     public boolean isMoving() { return moving; }
-    public void setMoving(boolean v) { this.moving = v; }
+    public void setMoving(boolean v) { moving = v; }
 
     public int getAnimFrame() { return animFrame; }
-    public void setAnimFrame(int f) { this.animFrame = f; }
+    public void setAnimFrame(int f) { animFrame = f; }
 
     public boolean isAttacking() { return attacking; }
-    public void setAttacking(boolean v) { this.attacking = v; }
+    public void setAttacking(boolean v) { attacking = v; }
 
     public int getAttackFrame() { return attackFrame; }
-    public void setAttackFrame(int f) { this.attackFrame = f; }
+    public void setAttackFrame(int f) { attackFrame = f; }
 
     public void requestRepaint() {
         fireEvent(new GameEvent(GameEventType.PLAYER_MOVED));
     }
 
-    // -------- Rooms --------
-    public Room getRoom() { return roomManager.getRoom(currentRoomIndex); }
-    public Room getNextRoom() { return roomManager.getRoom(nextRoomIndex); }
-
-    public int getCurrentRoomIndex() { return currentRoomIndex; }
-    public int getRoomsCount() { return roomManager.count(); }
-
-    // -------- Transition --------
-    public boolean isTransitioning() { return transitioning; }
-    public SlideDir getSlideDir() { return slideDir; }
-    public int getNextRoomIndex() { return nextRoomIndex; }
-
+    // ---- room transition ----
     public void beginRoomTransition(int targetRoomIndex, SlideDir dir) {
         if (transitioning) return;
         if (targetRoomIndex < 0 || targetRoomIndex >= roomManager.count()) return;
@@ -133,43 +158,40 @@ public class GameModel extends ObservableModel {
         currentRoomIndex = nextRoomIndex;
         transitioning = false;
 
-        // respawn/reset quando entri nella room 7 (arena)
-        if (currentRoomIndex == RoomManager.PLAY_LAST_INDEX) {
-            enemyAlive = true;
-            enemyHp = 3;
-            enemyX = 8 * TILE_SIZE;
-            enemyY = 4 * TILE_SIZE;
-            enemyVx = 0f;
-            enemyVy = 0f;
-            enemyDirTimer = 0f;
-            enemyInvulnT = 0f;
-            enemyBlinkT = 0f;
-
-            rupeeAlive = false;
-            rupeeAnimating = false;
-
-            potionAlive = false;
-            potionAnimating = false;
+        // respawn/reset quando entri nella room arena (ora è la 4)
+        if (currentRoomIndex == RoomManager.SHOP_ROOM_INDEX) {
+            respawnArenaEntities();
         }
 
         fireEvent(new GameEvent(GameEventType.ROOM_CHANGED));
     }
 
-    // -------- Player pos --------
-    public float getPlayerX() { return playerX; }
-    public float getPlayerY() { return playerY; }
+    private void respawnArenaEntities() {
+        enemyAlive = true;
+        enemyHp = 3;
+        enemyX = 8 * TILE_SIZE;
+        enemyY = 4 * TILE_SIZE;
+        enemyVx = 0f;
+        enemyVy = 0f;
+        enemyDirTimer = 0f;
+        enemyInvulnT = 0f;
+        enemyBlinkT = 0f;
 
+        rupeeAlive = false;
+        rupeeAnimating = false;
+
+        potionAlive = false;
+        potionAnimating = false;
+    }
+
+    // ---- move player ----
     public void movePlayerTo(float x, float y) {
-        this.playerX = x;
-        this.playerY = y;
+        playerX = x;
+        playerY = y;
         fireEvent(new GameEvent(GameEventType.PLAYER_MOVED));
     }
 
-    // -------- HUD stats --------
-    public int getLives() { return lives; }
-    public int getRupees() { return rupees; }
-    public int getScore() { return score; }
-
+    // ---- HUD changes ----
     public void addRupees(int amount) {
         rupees += amount;
         if (rupees < 0) rupees = 0;
@@ -193,72 +215,15 @@ public class GameModel extends ObservableModel {
         if (lives <= 0) fireEvent(new GameEvent(GameEventType.GAME_OVER));
     }
 
-    // -------- Profile --------
-    public String getProfileNickname() { return profileNickname; }
-    public String getProfileAvatarPath() { return profileAvatarPath; }
-    public String getProfileId() { return profileId; }
-
     public void setActiveProfile(String id, String nickname, String avatarPath) {
-        this.profileId = (id == null) ? "" : id.trim();
-        this.profileNickname = (nickname == null || nickname.isBlank()) ? "Player" : nickname.trim();
-        this.profileAvatarPath = (avatarPath == null) ? "" : avatarPath.trim();
+        profileId = (id == null) ? "" : id.trim();
+        profileNickname = (nickname == null || nickname.isBlank()) ? "Player" : nickname.trim();
+        profileAvatarPath = (avatarPath == null) ? "" : avatarPath.trim();
         fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
     }
 
-    public void resetRun() {
-        currentRoomIndex = 0;
-        transitioning = false;
-        nextRoomIndex = 0;
-        slideDir = SlideDir.LEFT;
-
-        playerX = 6 * TILE_SIZE;
-        playerY = 6 * TILE_SIZE;
-
-        lives = 3;
-        rupees = 0;
-        score = 0;
-
-        shopOpen = false;
-        shopSelectionIndex = 0;
-        showInteractPrompt = false;
-
-        shopMessage = "";
-        shopMessageT = 0f;
-
-        facing = Facing.DOWN;
-        moving = false;
-        animFrame = 0;
-
-        attacking = false;
-        attackFrame = 0;
-
-        enemyAlive = true;
-        enemyHp = 3;
-        enemyX = 8 * TILE_SIZE;
-        enemyY = 4 * TILE_SIZE;
-        enemyVx = 0f;
-        enemyVy = 0f;
-        enemyDirTimer = 0f;
-        enemyInvulnT = 0f;
-        enemyBlinkT = 0f;
-
-        playerInvulnT = 0f;
-        playerBlinkT = 0f;
-
-        rupeeAlive = false;
-        rupeeAnimating = false;
-
-        potionAlive = false;
-        potionAnimating = false;
-
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
-        fireEvent(new GameEvent(GameEventType.ROOM_CHANGED));
-        fireEvent(new GameEvent(GameEventType.PLAYER_MOVED));
-    }
-
-    // -------- UI/Shop --------
+    // ---- shop ui ----
     public boolean isShowInteractPrompt() { return showInteractPrompt; }
-
     public void setShowInteractPrompt(boolean v) {
         if (showInteractPrompt == v) return;
         showInteractPrompt = v;
@@ -268,7 +233,7 @@ public class GameModel extends ObservableModel {
     public boolean isShopOpen() { return shopOpen; }
     public int getShopSelectionIndex() { return shopSelectionIndex; }
 
-    // 4 voci: 0..3 (3 = Exit)
+    // 4 voci: 0..3 (3=Exit)
     public void setShopSelectionIndex(int idx) {
         int clamped = Math.max(0, Math.min(idx, 3));
         if (shopSelectionIndex == clamped) return;
@@ -309,7 +274,7 @@ public class GameModel extends ObservableModel {
         }
     }
 
-    // -------- Enemy --------
+    // ---- enemy ----
     public boolean isEnemyAlive() { return enemyAlive; }
     public int getEnemyHp() { return enemyHp; }
 
@@ -351,7 +316,7 @@ public class GameModel extends ObservableModel {
         requestRepaint();
     }
 
-    // -------- Player invuln --------
+    // ---- player invuln ----
     public boolean isPlayerInvulnerable() { return playerInvulnT > 0f; }
     public boolean isPlayerBlinking() { return playerBlinkT > 0f; }
     public float getPlayerBlinkT() { return playerBlinkT; }
@@ -369,7 +334,7 @@ public class GameModel extends ObservableModel {
         requestRepaint();
     }
 
-    // -------- Rupee --------
+    // ---- rupee ----
     public boolean isRupeeAlive() { return rupeeAlive; }
     public float getRupeeX() { return rupeeX; }
     public float getRupeeY() { return rupeeY; }
@@ -412,7 +377,7 @@ public class GameModel extends ObservableModel {
         requestRepaint();
     }
 
-    // -------- Potion --------
+    // ---- potion ----
     public boolean isPotionAlive() { return potionAlive; }
     public float getPotionX() { return potionX; }
     public float getPotionY() { return potionY; }
@@ -453,5 +418,59 @@ public class GameModel extends ObservableModel {
         float arc = 4f * potionHopHeight * t * (1f - t);
         potionY = potionLandY - arc;
         requestRepaint();
+    }
+
+    // ---- reset ----
+    public void resetRun() {
+        transitioning = false;
+        nextRoomIndex = 0;
+        slideDir = SlideDir.LEFT;
+
+        currentRoomIndex = 0;
+
+        playerX = 6 * TILE_SIZE;
+        playerY = 6 * TILE_SIZE;
+
+        lives = 3;
+        rupees = 0;
+        score = 0;
+
+        shopOpen = false;
+        shopSelectionIndex = 0;
+        showInteractPrompt = false;
+
+        shopMessage = "";
+        shopMessageT = 0f;
+
+        facing = Facing.DOWN;
+        moving = false;
+        animFrame = 0;
+
+        attacking = false;
+        attackFrame = 0;
+
+        playerInvulnT = 0f;
+        playerBlinkT = 0f;
+
+        // reset drops
+        rupeeAlive = false;
+        rupeeAnimating = false;
+        potionAlive = false;
+        potionAnimating = false;
+
+        // enemy reset (non per forza spawnato subito: ma ok)
+        enemyAlive = true;
+        enemyHp = 3;
+        enemyX = 8 * TILE_SIZE;
+        enemyY = 4 * TILE_SIZE;
+        enemyVx = 0f;
+        enemyVy = 0f;
+        enemyDirTimer = 0f;
+        enemyInvulnT = 0f;
+        enemyBlinkT = 0f;
+
+        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
+        fireEvent(new GameEvent(GameEventType.ROOM_CHANGED));
+        fireEvent(new GameEvent(GameEventType.PLAYER_MOVED));
     }
 }
