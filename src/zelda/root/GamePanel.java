@@ -88,8 +88,7 @@ public class GamePanel extends JPanel {
         bind(im, am, "D_P", KeyStroke.getKeyStroke("pressed D"), () -> controller.setRight(true));
         bind(im, am, "D_R", KeyStroke.getKeyStroke("released D"), () -> controller.setRight(false));
 
-        bind(im, am, "F5", KeyStroke.getKeyStroke("pressed F5"), controller::debugWin);
-        bind(im, am, "F6", KeyStroke.getKeyStroke("pressed F6"), controller::debugLose);
+        
 
         bind(im, am, "E_P", KeyStroke.getKeyStroke("pressed E"), controller::pressInteract);
         bind(im, am, "ESC_P", KeyStroke.getKeyStroke("pressed ESCAPE"), controller::pressEsc);

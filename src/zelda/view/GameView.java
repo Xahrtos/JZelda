@@ -23,6 +23,15 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
     // ---- ENEMY / DROPS RENDER ----
     private static final float ENEMY_SCALE = 0.5f;  // 56x58 -> 28x29
     private static final float POTION_SCALE = 0.5f; // 64x72 -> 32x36
+    private static final int BOSS_ROOM_INDEX = 7;
+
+    // ---- BOSS FLOAT ----
+    private static final float BOSS_FLOAT_FREQ = 1.25f;
+    private static final float BOSS_FLOAT_AMP = 4.0f;
+
+    // ---- BOSS BULLET DRAW ----
+    private static final int BOSS_BULLET_DRAW_W = 18;
+    private static final int BOSS_BULLET_DRAW_H = 18;
 
     // ---- GAME OVER UI ----
     private boolean gameOverUiActive = false;
@@ -100,7 +109,6 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
             }
             repaint();
         } else if (model.isTitle()) {
-            // futura anim title: per ora repaint
             repaint();
         }
     }
@@ -111,8 +119,10 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
 
         Graphics2D g = (Graphics2D) g0.create();
         try {
+            // FIX: hints coerenti (NN + AA OFF)
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
 
             if (model.isTitle()) {
                 renderTitleScreen(g);
@@ -201,6 +211,11 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
 
             // draw order: enemy/drops sotto
             drawEnemy(g, roomX, roomY);
+
+            // boss + bullets
+            drawBoss(g, roomX, roomY);
+            drawBossBullets(g, roomX, roomY);
+
             drawRupee(g, roomX, roomY);
             drawPotion(g, roomX, roomY);
 
@@ -220,20 +235,6 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
                 renderRoomSolids(g, model.getRoom(), baseX, baseY);
             }
 
-            // ---- PROMPT ----
-            if (!model.isShopOpen() && model.isShowInteractPrompt()) {
-                int msgW = 240;
-                int msgH = 26;
-                int x = baseX + 10;
-                int y = baseY + roomPixelH - 10 - msgH;
-
-                g.setColor(new Color(0, 0, 0, 170));
-                g.fillRoundRect(x, y, msgW, msgH, 8, 8);
-
-                g.setColor(Color.WHITE);
-                g.drawString("Premi E per interagire", x + 10, y + 18);
-            }
-
             // ---- SHOP OVERLAY ----
             if (model.isShopOpen()) {
                 renderShopOverlay(g, baseX, baseY, roomPixelW, roomPixelH);
@@ -244,6 +245,51 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
 
         } finally {
             g.dispose();
+        }
+    }
+
+    // ===========================
+    // BOSS render (new refactor)
+    // ===========================
+
+    private void drawBoss(Graphics2D g, int roomX, int roomY) {
+        if (model.getCurrentRoomIndex() != BOSS_ROOM_INDEX) return;
+        if (model.isTransitioning() || sliding) return;
+
+        BufferedImage sprite = model.isBossAlive() ? getBossSprite() : Assets.bossDeath;
+        if (sprite == null) return;
+
+        float t = model.getBossFloatT();
+        int bob = Math.round((float) Math.sin(t * (float) Math.PI * 2f * BOSS_FLOAT_FREQ) * BOSS_FLOAT_AMP);
+
+        int bx = roomX + Math.round(model.getBossX());
+        int by = roomY + Math.round(model.getBossY()) + bob;
+
+        g.drawImage(sprite, bx, by, sprite.getWidth(), sprite.getHeight(), null);
+    }
+
+    private BufferedImage getBossSprite() {
+        GameModel.Facing f = model.getBossFacing();
+        return switch (f) {
+            case UP -> Assets.bossWalkUp;
+            case DOWN -> Assets.bossWalkDown;
+            case LEFT -> Assets.bossWalkLRLeft;
+            case RIGHT -> Assets.bossWalkLR;
+        };
+    }
+
+    private void drawBossBullets(Graphics2D g, int roomX, int roomY) {
+        if (model.getCurrentRoomIndex() != BOSS_ROOM_INDEX) return;
+        if (model.isTransitioning() || sliding) return;
+        if (Assets.bossAttack == null) return;
+
+        for (int i = 0; i < model.getBossBulletCount(); i++) {
+            if (!model.isBossBulletAlive(i)) continue;
+
+            int x = roomX + Math.round(model.getBossBulletX(i));
+            int y = roomY + Math.round(model.getBossBulletY(i));
+
+            g.drawImage(Assets.bossAttack, x, y, BOSS_BULLET_DRAW_W, BOSS_BULLET_DRAW_H, null);
         }
     }
 
@@ -562,7 +608,6 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
                 if (Assets.floor != null) {
                     g.drawImage(Assets.floor, px, py, GameModel.TILE_SIZE, GameModel.TILE_SIZE, null);
                 } else {
-                    // fallback
                     g.setColor(new Color(20, 80, 20));
                     g.fillRect(px, py, GameModel.TILE_SIZE, GameModel.TILE_SIZE);
                 }
@@ -592,13 +637,11 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
 
         BufferedImage img = null;
 
-        // Angoli: MAPPATURA CORRETTA (base angle.png considerata "top-right")
-        if (top && left) img = Assets.wallAngle270;          // top-left
-        else if (top && right) img = Assets.wallAngle0;      // top-right
-        else if (bottom && right) img = Assets.wallAngle90;  // bottom-right
-        else if (bottom && left) img = Assets.wallAngle180;  // bottom-left
+        if (top && left) img = Assets.wallAngle270;
+        else if (top && right) img = Assets.wallAngle0;
+        else if (bottom && right) img = Assets.wallAngle90;
+        else if (bottom && left) img = Assets.wallAngle180;
         else {
-            // Bordi: straight base considerata "top" (orizzontale)
             if (top) img = Assets.wallStraight0;
             else if (right) img = Assets.wallStraight90;
             else if (bottom) img = Assets.wallStraight180;
@@ -611,7 +654,6 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
             return;
         }
 
-        // Ora sono 32x32: draw diretto, niente centering
         g.drawImage(img, px, py, GameModel.TILE_SIZE, GameModel.TILE_SIZE, null);
     }
 
@@ -656,7 +698,6 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
             lineY += 28;
         }
 
-        // messaggio rosso (soldi insufficienti)
         if (!model.getShopMessage().isBlank() && model.getShopMessageT() > 0f) {
             String msg = model.getShopMessage();
             FontMetrics fm = g.getFontMetrics();

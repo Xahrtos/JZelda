@@ -28,6 +28,17 @@ public class Assets {
     // ---- ENEMY ----
     public static BufferedImage enemy;
 
+    // ---- BOSS (new refactor) ----
+    public static BufferedImage bossWalkUp;
+    public static BufferedImage bossWalkDown;
+    public static BufferedImage bossWalkLR;      // base looks RIGHT
+    public static BufferedImage bossWalkLRLeft;  // mirrored
+    public static BufferedImage bossAttack;      // projectile sprite
+    public static BufferedImage bossDeath;
+
+    // ---- DOOR ----
+    public static BufferedImage doorOpened;
+
     // ---- DROPS ----
     public static BufferedImage rupee;
     public static BufferedImage potion;
@@ -93,6 +104,18 @@ public class Assets {
         // ---- ENEMY ----
         enemy = loadImage("sprites/enemy_1.png");
 
+        // ---- BOSS (new files in sprites/) ----
+        bossWalkUp = loadImage("sprites/boss_walkup.png");
+        bossWalkDown = loadImage("sprites/boss_walkdown.png");
+        bossWalkLR = loadImage("sprites/boss_walkleftright.png"); // base RIGHT
+        bossWalkLRLeft = mirrorHorizontally(bossWalkLR);
+
+        bossAttack = loadImage("sprites/boss_attack.png");
+        bossDeath = loadImage("sprites/boss_death.png");
+
+        // ---- DOOR ----
+        doorOpened = loadImage("sprites/door_opened.png");
+
         // ---- DROPS ----
         rupee = loadImage("sprites/rupee.png");
         potion = loadImage("sprites/potion.png");
@@ -104,8 +127,6 @@ public class Assets {
         wallAngle = loadImage("sprites/angle.png");
         wallStraight = loadImage("sprites/straight_wall.png");
         floor = loadImage("sprites/floor.png");
-        
-        
 
         wallAngle0 = wallAngle;
         wallAngle90 = rotate90(wallAngle);

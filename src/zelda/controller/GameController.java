@@ -30,7 +30,7 @@ public class GameController {
 
     private static final int HIT_W = 16;
     private static final int HIT_H = 10;
-    
+
     private static final int SOLID_PAD = 4;
 
     private static final int HIT_OFF_X = (SPRITE_W - HIT_W) / 2; // 8
@@ -40,11 +40,10 @@ public class GameController {
     private static final int SHOP_INDEX = RoomManager.SHOP_INDEX;
 
     private static final int ARENA_INDEX = RoomManager.SHOP_ROOM_INDEX; // 4
+    private static final int BOSS_ROOM_INDEX = RoomManager.PLAY_LAST_INDEX; // 7
 
-    // SHOP: 0..3 (3=Exit)
     private static final int SHOP_EXIT_INDEX = 3;
 
-    // Shop costs
     private static final int COST_POTION = 5;
     private static final int COST_ITEM2 = 10;
     private static final int COST_ITEM3 = 25;
@@ -73,10 +72,10 @@ public class GameController {
     private static final float ENEMY_DIR_MIN = 0.6f;
     private static final float ENEMY_DIR_MAX = 1.6f;
 
-    // ---- ATTACK HITBOX ----
     private static final float ENEMY_INVULN_SECONDS = 0.25f;
     private static final float ENEMY_BLINK_SECONDS = 0.25f;
 
+    // ---- SWORD ----
     private static final int SWORD_W = 18;
     private static final int SWORD_H = 18;
     private static final int SWORD_REACH = 32;
@@ -85,16 +84,36 @@ public class GameController {
 
     // ---- DROPS ----
     private static final float POTION_DROP_CHANCE = 0.25f;
-    private static final int POTION_DRAW_W = 32; // 64x72 scaled 0.5
+    private static final int POTION_DRAW_W = 32;
     private static final int POTION_DRAW_H = 36;
     private static final int DROP_SEPARATION_X = 14;
 
     private static final int RUPEE_HIT_W = 12;
     private static final int RUPEE_HIT_H = 20;
 
-    // ---- PLAYER DAMAGE FROM ENEMY ----
+    // ---- PLAYER DAMAGE FROM ENEMY / BULLETS ----
     private static final float PLAYER_INVULN_SECONDS = 0.80f;
     private static final float PLAYER_BLINK_SECONDS = 0.80f;
+
+    // ======================
+    // BOSS (refactor)
+    // ======================
+    private static final int BOSS_DRAW_W = 32;
+    private static final int BOSS_DRAW_H = 32;
+
+    private static final float BOSS_SPEED = 85f;
+
+    // float/bobbing
+    private static final float BOSS_FLOAT_FREQ = 1.25f; // Hz-ish
+    private static final float BOSS_FLOAT_AMP = 4.0f;   // px
+
+    // shooting
+    private static final float BOSS_SHOOT_INTERVAL = 0.7f;
+    private static final float BOSS_BULLET_SPEED = 220f;
+
+    // projectile hitbox (in room pixels)
+    private static final int BOSS_BULLET_W = 18;
+    private static final int BOSS_BULLET_H = 18;
 
     public GameController(GameModel model) {
         this.model = model;
@@ -105,7 +124,6 @@ public class GameController {
     public void setLeft(boolean v) { left = v; }
     public void setRight(boolean v) { right = v; }
 
-    // one-shot binds
     public void pressInteract() { interactPressed = true; } // E
     public void pressEsc() { escPressed = true; }           // ESC
     public void pressAttack() { attackPressed = true; }     // SPACE
@@ -116,39 +134,22 @@ public class GameController {
     public void debugLose() { simulateEndGame(false); }
 
     public void update(float dt) {
-        // TITLE: start con ENTER
         if (model.isTitle()) {
-            if (startPressed) {
-                model.startGame();
-            }
-            startPressed = false;
-            retryPressed = false;
-            interactPressed = false;
-            escPressed = false;
-            attackPressed = false;
+            if (startPressed) model.startGame();
+            clearOneShots();
             return;
         }
 
-        // GAME OVER: retry con X
         if (model.getLives() <= 0) {
             if (retryPressed) model.resetRun();
-
-            startPressed = false;
-            retryPressed = false;
-            interactPressed = false;
-            escPressed = false;
-            attackPressed = false;
+            clearOneShots();
             return;
         }
 
         if (model.isTransitioning()) {
             resetWalkAnim();
             resetAttackAnim();
-            startPressed = false;
-            retryPressed = false;
-            interactPressed = false;
-            escPressed = false;
-            attackPressed = false;
+            clearOneShots();
             return;
         }
 
@@ -157,12 +158,7 @@ public class GameController {
             resetAttackAnim();
             model.updateShopTimers(dt);
             updateShopInput();
-
-            startPressed = false;
-            retryPressed = false;
-            interactPressed = false;
-            escPressed = false;
-            attackPressed = false;
+            clearOneShots();
             return;
         }
 
@@ -171,16 +167,17 @@ public class GameController {
         model.updatePotionAnim(dt);
         model.updatePlayerTimers(dt);
 
+        // boss logic + bullets
+        updateBossRefactor(dt);
+        updateBossShooting(dt);
+        updateBossProjectiles(dt);
+
         boolean nearNpc = canInteractWithNpc();
         model.setShowInteractPrompt(nearNpc);
 
         if (interactPressed && nearNpc) {
             model.openShop();
-            interactPressed = false;
-            escPressed = false;
-            attackPressed = false;
-            retryPressed = false;
-            startPressed = false;
+            clearOneShots();
             return;
         }
 
@@ -190,12 +187,7 @@ public class GameController {
             checkEnemyTouchDamage();
             checkRupeePickup();
             checkPotionPickup();
-
-            startPressed = false;
-            retryPressed = false;
-            interactPressed = false;
-            escPressed = false;
-            attackPressed = false;
+            clearOneShots();
             return;
         }
 
@@ -205,20 +197,11 @@ public class GameController {
             checkEnemyTouchDamage();
             checkRupeePickup();
             checkPotionPickup();
-
-            startPressed = false;
-            retryPressed = false;
-            interactPressed = false;
-            escPressed = false;
-            attackPressed = false;
+            clearOneShots();
             return;
         }
 
-        startPressed = false;
-        retryPressed = false;
-        interactPressed = false;
-        escPressed = false;
-        attackPressed = false;
+        clearOneShots();
 
         float beforeX = model.getPlayerX();
         float beforeY = model.getPlayerY();
@@ -244,8 +227,149 @@ public class GameController {
         checkPotionPickup();
     }
 
-    // -------------------- ENEMY --------------------
+    private void clearOneShots() {
+        startPressed = false;
+        retryPressed = false;
+        interactPressed = false;
+        escPressed = false;
+        attackPressed = false;
+    }
 
+    // ======================
+    // BOSS (refactor)
+    // ======================
+    private void updateBossRefactor(float dt) {
+        if (model.getCurrentRoomIndex() != BOSS_ROOM_INDEX) return;
+
+        // float always while in room (even if dead, you can decide; user asked "while vaga")
+        model.addBossFloatT(dt);
+
+        if (!model.isBossAlive()) return;
+
+        float px = model.getPlayerX();
+        float py = model.getPlayerY();
+
+        float bx = model.getBossX();
+        float by = model.getBossY();
+
+        float dx = px - bx;
+        float dy = py - by;
+
+        float dist2 = dx * dx + dy * dy;
+        float dist = (float) Math.sqrt(Math.max(0.0001f, dist2));
+
+        float vx = (dx / dist) * BOSS_SPEED;
+        float vy = (dy / dist) * BOSS_SPEED;
+
+        float nextX = bx + vx * dt;
+        float nextY = by + vy * dt;
+
+        // clamp inside room bounds (leave 1 tile walls)
+        int roomW = Room.COLS * GameModel.TILE_SIZE;
+        int roomH = Room.ROWS * GameModel.TILE_SIZE;
+
+        float minX = GameModel.TILE_SIZE;
+        float minY = GameModel.TILE_SIZE;
+        float maxX = roomW - GameModel.TILE_SIZE - BOSS_DRAW_W;
+        float maxY = roomH - GameModel.TILE_SIZE - BOSS_DRAW_H;
+
+        if (nextX < minX) nextX = minX;
+        if (nextY < minY) nextY = minY;
+        if (nextX > maxX) nextX = maxX;
+        if (nextY > maxY) nextY = maxY;
+
+        model.setBossPos(nextX, nextY);
+
+        // facing from velocity
+        if (Math.abs(vx) > Math.abs(vy)) {
+            model.setBossFacing(vx < 0 ? GameModel.Facing.LEFT : GameModel.Facing.RIGHT);
+        } else {
+            model.setBossFacing(vy < 0 ? GameModel.Facing.UP : GameModel.Facing.DOWN);
+        }
+    }
+
+    private void updateBossShooting(float dt) {
+        if (model.getCurrentRoomIndex() != BOSS_ROOM_INDEX) return;
+        if (!model.isBossAlive()) return;
+
+        float t = model.getBossShootT() + dt;
+        if (t >= BOSS_SHOOT_INTERVAL) {
+            // shoot once; keep remainder to avoid drift
+            t -= BOSS_SHOOT_INTERVAL;
+            spawnBossBulletTowardsPlayer();
+        }
+        model.setBossShootT(t);
+    }
+
+    private void spawnBossBulletTowardsPlayer() {
+        float bx = model.getBossX() + BOSS_DRAW_W / 2f;
+        float by = model.getBossY() + BOSS_DRAW_H / 2f;
+
+        float px = model.getPlayerX() + SPRITE_W / 2f;
+        float py = model.getPlayerY() + SPRITE_H / 2f;
+
+        float dx = px - bx;
+        float dy = py - by;
+        float dist = (float) Math.sqrt(Math.max(0.0001f, dx * dx + dy * dy));
+
+        float vx = (dx / dist) * BOSS_BULLET_SPEED;
+        float vy = (dy / dist) * BOSS_BULLET_SPEED;
+
+        // spawn slightly in front
+        float spawnX = bx - BOSS_BULLET_W / 2f;
+        float spawnY = by - BOSS_BULLET_H / 2f;
+
+        model.spawnBossBullet(spawnX, spawnY, vx, vy);
+    }
+
+    private void updateBossProjectiles(float dt) {
+        if (model.getCurrentRoomIndex() != BOSS_ROOM_INDEX) return;
+
+        model.updateBossBullets(dt);
+
+        Rectangle playerFeet = new Rectangle(
+                Math.round(model.getPlayerX() + HIT_OFF_X),
+                Math.round(model.getPlayerY() + HIT_OFF_Y),
+                HIT_W,
+                HIT_H
+        );
+
+        for (int i = 0; i < model.getBossBulletCount(); i++) {
+            if (!model.isBossBulletAlive(i)) continue;
+
+            float x = model.getBossBulletX(i);
+            float y = model.getBossBulletY(i);
+
+            // wall collision -> despawn
+            if (bulletHitsSolidTile(x, y)) {
+                model.despawnBossBullet(i);
+                continue;
+            }
+
+            // hit player
+            if (!model.isPlayerInvulnerable()) {
+                Rectangle b = new Rectangle(Math.round(x), Math.round(y), BOSS_BULLET_W, BOSS_BULLET_H);
+                if (b.intersects(playerFeet)) {
+                    model.despawnBossBullet(i);
+                    model.hitPlayer(1, PLAYER_INVULN_SECONDS, PLAYER_BLINK_SECONDS);
+                }
+            }
+        }
+    }
+
+    private boolean bulletHitsSolidTile(float x, float y) {
+        // sample center point
+        float cx = x + BOSS_BULLET_W / 2f;
+        float cy = y + BOSS_BULLET_H / 2f;
+
+        int tx = (int) (cx / GameModel.TILE_SIZE);
+        int ty = (int) (cy / GameModel.TILE_SIZE);
+
+        if (tx < 0 || ty < 0 || tx >= Room.COLS || ty >= Room.ROWS) return true;
+        return model.getRoom().isSolidTile(tx, ty);
+    }
+
+    // -------------------- ENEMY --------------------
     private void updateEnemy(float dt) {
         if (!model.isEnemyAlive()) return;
         if (model.getCurrentRoomIndex() != ARENA_INDEX) return;
@@ -298,7 +422,6 @@ public class GameController {
     }
 
     // -------------------- WALK ANIM --------------------
-
     private void resetWalkAnim() {
         walkFrame = 0;
         walkTimer = 0f;
@@ -334,7 +457,6 @@ public class GameController {
     }
 
     // -------------------- ATTACK --------------------
-
     private void resetAttackAnim() {
         model.setAttacking(false);
         model.setAttackFrame(0);
@@ -371,6 +493,7 @@ public class GameController {
         }
 
         tryHitEnemyWithSword();
+        tryHitBossWithSword();
 
         if (atkTimer >= ATTACK_TOTAL_TIME) {
             resetAttackAnim();
@@ -417,6 +540,29 @@ public class GameController {
         }
     }
 
+    private void tryHitBossWithSword() {
+        if (model.getCurrentRoomIndex() != BOSS_ROOM_INDEX) return;
+        if (!model.isBossAlive()) return;
+
+        if (!model.isAttacking() || model.getAttackFrame() != 1) return;
+        if (attackDidHitThisSwing) return;
+
+        // simple hurtbox around boss (32x32); you can make it feet-only if needed
+        Rectangle sword = computeSwordHitbox();
+        Rectangle boss = new Rectangle(
+                Math.round(model.getBossX()),
+                Math.round(model.getBossY()),
+                BOSS_DRAW_W,
+                BOSS_DRAW_H
+        );
+
+        if (sword.intersects(boss)) {
+            attackDidHitThisSwing = true;
+            model.hitBoss(1);
+            if (!model.isBossAlive()) model.addScore(1500);
+        }
+    }
+
     private Rectangle computeSwordHitbox() {
         float px = model.getPlayerX();
         float py = model.getPlayerY();
@@ -438,7 +584,6 @@ public class GameController {
     }
 
     // -------------------- PLAYER DAMAGE --------------------
-
     private void checkEnemyTouchDamage() {
         if (!model.isEnemyAlive()) return;
         if (model.getCurrentRoomIndex() != ARENA_INDEX) return;
@@ -464,7 +609,6 @@ public class GameController {
     }
 
     // -------------------- PICKUPS --------------------
-
     private void checkRupeePickup() {
         if (!model.isRupeeAlive()) return;
         if (model.getCurrentRoomIndex() != ARENA_INDEX) return;
@@ -516,7 +660,6 @@ public class GameController {
     }
 
     // -------------------- SHOP --------------------
-
     private void updateShopInput() {
         if (escPressed) {
             model.closeShop();
@@ -567,7 +710,6 @@ public class GameController {
     }
 
     // -------------------- COLLISION / NPC --------------------
-
     private boolean canInteractWithNpc() {
         Room room = model.getRoom();
         if (!room.hasNpc() || room.getNpcBounds() == null) return false;
@@ -596,37 +738,26 @@ public class GameController {
         float nextX = model.getPlayerX() + dx;
         float nextY = model.getPlayerY() + dy;
 
-        // ---- CUSCINETTI VISIVI PER EVITARE COMPENETRAZIONI ----
-        // Aumenta questi valori se noti che lo sprite sfora ancora di qualche pixel
-        int visualPadY = 14; // Protegge la testa del PG quando cammina verso l'alto
-        int visualPadX = 4;  // Protegge le spalle quando cammina verso sinistra
+        int visualPadY = 14;
+        int visualPadX = 4;
 
         float hbX = nextX + HIT_OFF_X;
         float hbY = nextY + HIT_OFF_Y;
 
-        // Applichiamo i pad standard di gioco
         float leftEdge = hbX - SOLID_PAD;
         float rightEdge = hbX + HIT_W - 1 + SOLID_PAD;
         float topEdge = hbY - SOLID_PAD;
         float bottomEdge = hbY + HIT_H - 1 + SOLID_PAD;
 
-        // Modifichiamo i bordi di controllo in base alla direzione per anticipare il blocco visivo
-        if (dy < 0) { // Se si muove verso l'ALTO
-            topEdge -= visualPadY;
-        }
-        if (dx < 0) { // Se si muove verso SINISTRA
-            leftEdge -= visualPadX;
-        }
-        if (dx > 0) { // Se si muove verso DESTRA
-            rightEdge += visualPadX;
-        }
+        if (dy < 0) topEdge -= visualPadY;
+        if (dx < 0) leftEdge -= visualPadX;
+        if (dx > 0) rightEdge += visualPadX;
 
-        // Controllo collisioni sui 4 angoli modificati
         boolean collidesTiles =
                 collidesAt(leftEdge, topEdge) ||
-                collidesAt(rightEdge, topEdge) ||
-                collidesAt(leftEdge, bottomEdge) ||
-                collidesAt(rightEdge, bottomEdge);
+                        collidesAt(rightEdge, topEdge) ||
+                        collidesAt(leftEdge, bottomEdge) ||
+                        collidesAt(rightEdge, bottomEdge);
 
         if (collidesTiles) return;
         if (collidesNpc(nextX, nextY)) return;
@@ -655,14 +786,11 @@ public class GameController {
         int tx = (int) (px / GameModel.TILE_SIZE);
         int ty = (int) (py / GameModel.TILE_SIZE);
 
-        // fuori bounds = solido
         if (tx < 0 || ty < 0 || tx >= Room.COLS || ty >= Room.ROWS) return true;
-
         return model.getRoom().isSolidTile(tx, ty);
     }
 
     // -------------------- ROOM EXIT --------------------
-
     private void checkRoomExit() {
         int roomW = Room.COLS * GameModel.TILE_SIZE;
         int roomH = Room.ROWS * GameModel.TILE_SIZE;
@@ -740,7 +868,6 @@ public class GameController {
     }
 
     // -------------------- DEBUG / PROFILE --------------------
-
     private void simulateEndGame(boolean won) {
         String pid = model.getProfileId();
         if (pid == null || pid.isBlank()) return;

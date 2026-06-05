@@ -48,7 +48,6 @@ public class GameModel extends ObservableModel {
     private boolean shopOpen = false;
     private int shopSelectionIndex = 0; // 0..3 (3=Exit)
 
-    // shop message (es. soldi insufficienti)
     private String shopMessage = "";
     private float shopMessageT = 0f;
 
@@ -101,6 +100,32 @@ public class GameModel extends ObservableModel {
     private float potionAnimDur = 0.32f;
     private float potionHopHeight = 14f;
     private float potionLandY = 0f;
+
+    // =========================
+    // BOSS (refactor) + PROJECTILES
+    // =========================
+    private boolean bossAlive = true;
+    private int bossHp = 10;
+
+    // boss position in room pixel coordinates
+    private float bossX = 8 * TILE_SIZE;
+    private float bossY = 4 * TILE_SIZE;
+    private Facing bossFacing = Facing.DOWN;
+
+    // float/bobbing
+    private float bossFloatT = 0f;
+
+    // projectile timer
+    private float bossShootT = 0f;
+
+    // projectiles: simple fixed pool
+    private static final int MAX_BOSS_BULLETS = 16;
+
+    private final boolean[] bossBulletAlive = new boolean[MAX_BOSS_BULLETS];
+    private final float[] bossBulletX = new float[MAX_BOSS_BULLETS];
+    private final float[] bossBulletY = new float[MAX_BOSS_BULLETS];
+    private final float[] bossBulletVx = new float[MAX_BOSS_BULLETS];
+    private final float[] bossBulletVy = new float[MAX_BOSS_BULLETS];
 
     // ---- basic getters ----
     public Room getRoom() { return roomManager.getRoom(currentRoomIndex); }
@@ -158,7 +183,6 @@ public class GameModel extends ObservableModel {
         currentRoomIndex = nextRoomIndex;
         transitioning = false;
 
-        // respawn/reset quando entri nella room arena (ora è la 4)
         if (currentRoomIndex == RoomManager.SHOP_ROOM_INDEX) {
             respawnArenaEntities();
         }
@@ -233,7 +257,6 @@ public class GameModel extends ObservableModel {
     public boolean isShopOpen() { return shopOpen; }
     public int getShopSelectionIndex() { return shopSelectionIndex; }
 
-    // 4 voci: 0..3 (3=Exit)
     public void setShopSelectionIndex(int idx) {
         int clamped = Math.max(0, Math.min(idx, 3));
         if (shopSelectionIndex == clamped) return;
@@ -420,6 +443,67 @@ public class GameModel extends ObservableModel {
         requestRepaint();
     }
 
+    // =========================
+    // BOSS API
+    // =========================
+    public boolean isBossAlive() { return bossAlive; }
+    public int getBossHp() { return bossHp; }
+    public float getBossX() { return bossX; }
+    public float getBossY() { return bossY; }
+    public Facing getBossFacing() { return bossFacing; }
+    public float getBossFloatT() { return bossFloatT; }
+    public float getBossShootT() { return bossShootT; }
+
+    public void setBossPos(float x, float y) { bossX = x; bossY = y; requestRepaint(); }
+    public void setBossFacing(Facing f) { bossFacing = f; }
+
+    public void addBossFloatT(float dt) { bossFloatT += dt; }
+    public void setBossShootT(float t) { bossShootT = t; }
+
+    public void hitBoss(int dmg) {
+        if (!bossAlive) return;
+        bossHp = Math.max(0, bossHp - dmg);
+        if (bossHp == 0) {
+            bossAlive = false;
+            requestRepaint();
+        }
+    }
+
+    // =========================
+    // PROJECTILES API
+    // =========================
+    public int getBossBulletCount() { return MAX_BOSS_BULLETS; }
+    public boolean isBossBulletAlive(int i) { return bossBulletAlive[i]; }
+    public float getBossBulletX(int i) { return bossBulletX[i]; }
+    public float getBossBulletY(int i) { return bossBulletY[i]; }
+
+    public void despawnBossBullet(int i) {
+        bossBulletAlive[i] = false;
+    }
+
+    public boolean spawnBossBullet(float x, float y, float vx, float vy) {
+        for (int i = 0; i < MAX_BOSS_BULLETS; i++) {
+            if (!bossBulletAlive[i]) {
+                bossBulletAlive[i] = true;
+                bossBulletX[i] = x;
+                bossBulletY[i] = y;
+                bossBulletVx[i] = vx;
+                bossBulletVy[i] = vy;
+                requestRepaint();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void updateBossBullets(float dt) {
+        for (int i = 0; i < MAX_BOSS_BULLETS; i++) {
+            if (!bossBulletAlive[i]) continue;
+            bossBulletX[i] += bossBulletVx[i] * dt;
+            bossBulletY[i] += bossBulletVy[i] * dt;
+        }
+    }
+
     // ---- reset ----
     public void resetRun() {
         transitioning = false;
@@ -452,13 +536,11 @@ public class GameModel extends ObservableModel {
         playerInvulnT = 0f;
         playerBlinkT = 0f;
 
-        // reset drops
         rupeeAlive = false;
         rupeeAnimating = false;
         potionAlive = false;
         potionAnimating = false;
 
-        // enemy reset (non per forza spawnato subito: ma ok)
         enemyAlive = true;
         enemyHp = 3;
         enemyX = 8 * TILE_SIZE;
@@ -468,6 +550,18 @@ public class GameModel extends ObservableModel {
         enemyDirTimer = 0f;
         enemyInvulnT = 0f;
         enemyBlinkT = 0f;
+
+        // boss reset
+        bossAlive = true;
+        bossHp = 10;
+        bossX = 8 * TILE_SIZE;
+        bossY = 4 * TILE_SIZE;
+        bossFacing = Facing.DOWN;
+        bossFloatT = 0f;
+        bossShootT = 0f;
+
+        // bullets reset
+        for (int i = 0; i < MAX_BOSS_BULLETS; i++) bossBulletAlive[i] = false;
 
         fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
         fireEvent(new GameEvent(GameEventType.ROOM_CHANGED));

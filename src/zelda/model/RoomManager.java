@@ -21,8 +21,10 @@ public class RoomManager {
             rooms.add(makeLinearRoom(i, true, true, topDoor, false));
         }
 
-        rooms.add(makeLinearRoom(7, true, true, false, false));
+        // stanza 7: boss room (vuota, porta in alto gestita dalla logica boss)
+        rooms.add(makeBossRoom7());
 
+        // shop
         rooms.add(makeLinearRoom(8, false, false, false, true));
     }
 
@@ -32,6 +34,36 @@ public class RoomManager {
 
     public int count() {
         return rooms.size();
+    }
+
+    private Room makeBossRoom7() {
+        Room r = new Room();
+
+        // perimetro solido
+        for (int x = 0; x < Room.COLS; x++) {
+            r.setTile(x, 0, Room.TILE_SOLID);
+            r.setTile(x, Room.ROWS - 1, Room.TILE_SOLID);
+        }
+        for (int y = 0; y < Room.ROWS; y++) {
+            r.setTile(0, y, Room.TILE_SOLID);
+            r.setTile(Room.COLS - 1, y, Room.TILE_SOLID);
+        }
+
+        // porte laterali per arrivare (puoi cambiare se vuoi)
+        int midY = Room.ROWS / 2;
+        r.setTile(0, midY - 1, Room.TILE_FLOOR);
+        r.setTile(0, midY, Room.TILE_FLOOR);
+
+        r.setTile(Room.COLS - 1, midY - 1, Room.TILE_FLOOR);
+        r.setTile(Room.COLS - 1, midY, Room.TILE_FLOOR);
+
+        // porta top-center: inizialmente CHIUSA => lasciamo SOLID
+        // (verrà aperta dal GameModel quando il boss muore)
+        // midX definito comunque qui per chiarezza:
+        int midX = Room.COLS / 2;
+        r.setTile(midX, 0, Room.TILE_SOLID);
+
+        return r;
     }
 
     private Room makeLinearRoom(int id, boolean leftDoor, boolean rightDoor, boolean topDoor, boolean bottomDoor) {
