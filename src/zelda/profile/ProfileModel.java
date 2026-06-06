@@ -43,7 +43,7 @@ public class ProfileModel extends ObservableModel {
         UserProfile p = new UserProfile(
                 id,
                 (nickname == null || nickname.isBlank()) ? "Player" : nickname.trim(),
-                "", // avatar vuoto all’inizio
+                "", // avatar vuoto all'inizio
                 0, 0, 0
         );
         profiles.add(p);
@@ -58,13 +58,25 @@ public class ProfileModel extends ObservableModel {
         fireEvent(new GameEvent(GameEventType.PROFILE_CHANGED));
     }
 
-    public void updateSelectedAvatar(String avatarPath) {
-        if (selected == null) return;
-        selected.setAvatarPath(avatarPath == null ? "" : avatarPath.trim());
-        fireEvent(new GameEvent(GameEventType.PROFILE_CHANGED));
-    }
+    
 
     public void save() {
         store.saveProfiles(profiles);
+    }
+
+    // ---- DELETE PROFILE ----
+    public void deleteProfile(String profileId) {
+        // rimuovi dalla lista locale
+        profiles.removeIf(p -> p.getId().equals(profileId));
+
+        // se era il profilo selezionato, seleziona il primo disponibile (o null)
+        if (selected != null && selected.getId().equals(profileId)) {
+            selected = profiles.isEmpty() ? null : profiles.get(0);
+        }
+
+        // cancella anche dal ProfileStore (che rimuove da leaderboard)
+        store.deleteProfile(profileId);
+
+        fireEvent(new GameEvent(GameEventType.PROFILE_CHANGED));
     }
 }

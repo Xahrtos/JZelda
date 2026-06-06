@@ -75,6 +75,7 @@ public final class ProfileStore {
             throw new RuntimeException("Errore scrittura " + profilesFile.toAbsolutePath(), e);
         }
     }
+
     public java.util.List<LeaderboardRow> topRows(int n) {
         var entries = topScores(n); // già ordinato per score desc
 
@@ -86,6 +87,7 @@ public final class ProfileStore {
         }
         return rows;
     }
+
     public void recordMatchResult(String profileId, boolean won) {
         List<UserProfile> profiles = loadProfiles();
 
@@ -110,6 +112,7 @@ public final class ProfileStore {
                 .findFirst()
                 .orElse("Unknown");
     }
+
     public List<LeaderboardEntry> loadLeaderboard() {
         ensureDataDir();
 
@@ -164,7 +167,7 @@ public final class ProfileStore {
         }
     }
 
-    // --- Stream<T> “visibile”: top N punteggi ---
+    // --- Stream<T> "visibile": top N punteggi ---
     public List<LeaderboardEntry> topScores(int n) {
         return loadLeaderboard().stream()
                 .sorted(Comparator.comparingInt(LeaderboardEntry::getScore).reversed())
@@ -177,6 +180,51 @@ public final class ProfileStore {
         return loadProfiles().stream()
                 .filter(p -> p.getId().equals(id))
                 .findFirst();
+    }
+
+    // ========== DELETE PROFILE ==========
+    public void deleteProfile(String profileId) {
+        // 1) Rimuovi profilo da profiles.csv
+        List<UserProfile> profiles = loadProfiles();
+        boolean profileRemoved = profiles.removeIf(p -> p.getId().equals(profileId));
+
+        if (profileRemoved) {
+            saveProfiles(profiles);
+        }
+
+        // 2) Rimuovi tutte le entry di leaderboard per questo profilo
+        List<LeaderboardEntry> leaderboard = loadLeaderboard();
+        boolean entriesRemoved = leaderboard.removeIf(e -> e.getProfileId().equals(profileId));
+
+        if (entriesRemoved) {
+            // Riscrivi il file leaderboard intero (senza le entry del profilo eliminato)
+            saveLeaderboard(leaderboard);
+        }
+    }
+
+    private void saveLeaderboard(List<LeaderboardEntry> entries) {
+        ensureDataDir();
+
+        List<String> out = new ArrayList<>();
+        out.add("timestamp,profileId,score,won,roomReached,rupees");
+
+        for (LeaderboardEntry e : entries) {
+            out.add(String.join(",",
+                    Csv.escape(e.getTimestamp().toString()),
+                    Csv.escape(e.getProfileId()),
+                    Integer.toString(e.getScore()),
+                    Boolean.toString(e.isWon()),
+                    Integer.toString(e.getRoomReached()),
+                    Integer.toString(e.getRupees())
+            ));
+        }
+
+        try {
+            Files.write(leaderboardFile, out, StandardCharsets.UTF_8,
+                    StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        } catch (IOException e) {
+            throw new RuntimeException("Errore scrittura " + leaderboardFile.toAbsolutePath(), e);
+        }
     }
 
     // ---------- Helpers ----------

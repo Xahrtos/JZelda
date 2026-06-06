@@ -10,11 +10,7 @@ import java.util.function.Consumer;
 
 public class ProfilePanel extends JPanel implements GameEventListener {
 
-    // SOLO DEFAULT: per ora 1 avatar disponibile
-    private static final String[] DEFAULT_AVATARS = {
-            "", // nessun avatar
-            "assets/sprites/player_sheet1.png"
-    };
+   
 
     private final ProfileModel model;
     private final ProfileController controller;
@@ -24,8 +20,8 @@ public class ProfilePanel extends JPanel implements GameEventListener {
 
     private final JTextField nicknameField = new JTextField();
 
-    private final JComboBox<String> avatarCombo = new JComboBox<>(DEFAULT_AVATARS);
-    private final JLabel avatarLabel = new JLabel("No avatar", SwingConstants.CENTER);
+
+    
 
     private boolean updatingUI = false;
 
@@ -81,27 +77,46 @@ public class ProfilePanel extends JPanel implements GameEventListener {
             controller.onSave();
         });
 
-        avatarLabel.setPreferredSize(new Dimension(200, 200));
-        avatarLabel.setBorder(BorderFactory.createLineBorder(Color.GRAY));
+        
 
-        avatarCombo.addActionListener(e -> {
-            if (updatingUI) return;
-            String path = (String) avatarCombo.getSelectedItem();
-            controller.onChooseDefaultAvatarPath(path);
-        });
+       
 
         JButton play = new JButton("Gioca");
         play.addActionListener(e -> model.getSelected().ifPresent(p -> onPlay.accept(p)));
 
+        JButton deleteProfile = new JButton("Elimina profilo");
+        deleteProfile.setForeground(new Color(255, 100, 100));
+        deleteProfile.addActionListener(e -> {
+            UserProfile sel = profileList.getSelectedValue();
+            if (sel == null) {
+                JOptionPane.showMessageDialog(this, "Seleziona un profilo da eliminare.", 
+                        "Nessun profilo selezionato", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "Sei sicuro di voler eliminare il profilo '" + sel.getNickname() + "'?\n" +
+                    "Questa azione non può essere annullata.",
+                    "Conferma eliminazione",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE
+            );
+
+            if (confirm == JOptionPane.YES_OPTION) {
+                controller.onDeleteProfile(sel.getId());
+            }
+        });
+
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
         buttons.add(saveNick);
         buttons.add(play);
+        buttons.add(deleteProfile);
 
         right.add(Box.createVerticalStrut(10));
-        right.add(new JLabel("Avatar (default):"));
-        right.add(avatarCombo);
+      
+      
         right.add(Box.createVerticalStrut(8));
-        right.add(avatarLabel);
+        
         right.add(Box.createVerticalStrut(10));
         right.add(buttons);
 
@@ -128,23 +143,10 @@ public class ProfilePanel extends JPanel implements GameEventListener {
                 profileList.setSelectedValue(sel, true);
                 nicknameField.setText(sel.getNickname());
 
-                String path = sel.getAvatarPath();
-                avatarCombo.setSelectedItem(path == null ? "" : path);
-
-                if (path == null || path.isBlank()) {
-                    avatarLabel.setIcon(null);
-                    avatarLabel.setText("No avatar");
-                } else {
-                    ImageIcon ico = new ImageIcon(path);
-                    Image img = ico.getImage().getScaledInstance(200, 200, Image.SCALE_SMOOTH);
-                    avatarLabel.setIcon(new ImageIcon(img));
-                    avatarLabel.setText("");
-                }
+                
             }, () -> {
                 nicknameField.setText("");
-                avatarCombo.setSelectedItem("");
-                avatarLabel.setIcon(null);
-                avatarLabel.setText("No avatar");
+               
             });
 
             revalidate();

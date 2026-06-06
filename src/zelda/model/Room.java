@@ -37,6 +37,8 @@ public class Room {
         if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return false;
         return tiles[y][x] == TILE_OCCLUDER;
     }
+    
+    
 
     // ---- NPC API ----
     public void setNpc(String name, Rectangle boundsPx) {

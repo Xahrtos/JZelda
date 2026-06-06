@@ -635,28 +635,38 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         boolean top = (ty == 0);
         boolean bottom = (ty == Room.ROWS - 1);
 
-        BufferedImage img = null;
+        // Se è un bordo (perimetro), usa angle/straight
+        if (left || right || top || bottom) {
+            BufferedImage img = null;
 
-        if (top && left) img = Assets.wallAngle270;
-        else if (top && right) img = Assets.wallAngle0;
-        else if (bottom && right) img = Assets.wallAngle90;
-        else if (bottom && left) img = Assets.wallAngle180;
-        else {
-            if (top) img = Assets.wallStraight0;
-            else if (right) img = Assets.wallStraight90;
-            else if (bottom) img = Assets.wallStraight180;
-            else if (left) img = Assets.wallStraight270;
-        }
+            if (top && left) img = Assets.wallAngle270;
+            else if (top && right) img = Assets.wallAngle0;
+            else if (bottom && right) img = Assets.wallAngle90;
+            else if (bottom && left) img = Assets.wallAngle180;
+            else {
+                if (top) img = Assets.wallStraight0;
+                else if (right) img = Assets.wallStraight90;
+                else if (bottom) img = Assets.wallStraight180;
+                else if (left) img = Assets.wallStraight270;
+            }
 
-        if (img == null) {
-            g.setColor(Color.DARK_GRAY);
-            g.fillRect(px, py, GameModel.TILE_SIZE, GameModel.TILE_SIZE);
+            if (img == null) {
+                g.setColor(Color.DARK_GRAY);
+                g.fillRect(px, py, GameModel.TILE_SIZE, GameModel.TILE_SIZE);
+            } else {
+                g.drawImage(img, px, py, GameModel.TILE_SIZE, GameModel.TILE_SIZE, null);
+            }
             return;
         }
 
-        g.drawImage(img, px, py, GameModel.TILE_SIZE, GameModel.TILE_SIZE, null);
+        // Se è interno (ostacolo), usa obstacles.png
+        if (Assets.obstacles != null) {
+            g.drawImage(Assets.obstacles, px, py, GameModel.TILE_SIZE, GameModel.TILE_SIZE, null);
+        } else {
+            g.setColor(Color.DARK_GRAY);
+            g.fillRect(px, py, GameModel.TILE_SIZE, GameModel.TILE_SIZE);
+        }
     }
-
     // ===========================
     // SHOP OVERLAY
     // ===========================

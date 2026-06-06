@@ -25,16 +25,22 @@ public class Assets {
 
     public static BufferedImage merchant;
 
-    // ---- ENEMY ----
+    // ---- ENEMY 1 (original) ----
     public static BufferedImage enemy;
 
-    // ---- BOSS (new refactor) ----
+    // ---- ENEMY 2 (new) ----
+    public static BufferedImage[][] enemy2Walk = new BufferedImage[PLAYER_DIRECTIONS][PLAYER_WALK_FRAMES];
+
+    // ---- BOSS (refactor) ----
     public static BufferedImage bossWalkUp;
     public static BufferedImage bossWalkDown;
-    public static BufferedImage bossWalkLR;      // base looks RIGHT
-    public static BufferedImage bossWalkLRLeft;  // mirrored
-    public static BufferedImage bossAttack;      // projectile sprite
+    public static BufferedImage bossWalkLR;
+    public static BufferedImage bossWalkLRLeft;
+    public static BufferedImage bossAttack;
     public static BufferedImage bossDeath;
+
+    // ---- OBSTACLES (32x32) ----
+    public static BufferedImage obstacles;
 
     // ---- DOOR ----
     public static BufferedImage doorOpened;
@@ -61,7 +67,7 @@ public class Assets {
         // ---- IDLE ----
         BufferedImage idleDown = loadImage("sprites/idle_down.png");
         BufferedImage idleUp = loadImage("sprites/idle_up.png");
-        BufferedImage idleLR = loadImage("sprites/idle_leftright.png"); // BASE = LEFT
+        BufferedImage idleLR = loadImage("sprites/idle_leftright.png");
 
         playerIdle[DIR_DOWN] = idleDown;
         playerIdle[DIR_UP] = idleUp;
@@ -75,7 +81,7 @@ public class Assets {
         playerWalk[DIR_UP][0] = loadImage("sprites/move_up1.png");
         playerWalk[DIR_UP][1] = loadImage("sprites/move_up2.png");
 
-        BufferedImage moveL1 = loadImage("sprites/move_leftright1.png"); // BASE = LEFT
+        BufferedImage moveL1 = loadImage("sprites/move_leftright1.png");
         BufferedImage moveL2 = loadImage("sprites/move_leftright2.png");
 
         playerWalk[DIR_LEFT][0] = moveL1;
@@ -90,7 +96,7 @@ public class Assets {
         playerAttack[DIR_UP][0] = loadImage("sprites/attack_up1.png");
         playerAttack[DIR_UP][1] = loadImage("sprites/attack_up2.png");
 
-        BufferedImage atkL1 = loadImage("sprites/attack_leftright1.png"); // BASE = LEFT
+        BufferedImage atkL1 = loadImage("sprites/attack_leftright1.png");
         BufferedImage atkL2 = loadImage("sprites/attack_leftright2.png");
 
         playerAttack[DIR_LEFT][0] = atkL1;
@@ -101,17 +107,34 @@ public class Assets {
         // ---- MERCHANT ----
         merchant = loadImage("sprites/merchant.png");
 
-        // ---- ENEMY ----
+        // ---- ENEMY 1 ----
         enemy = loadImage("sprites/enemy_1.png");
 
-        // ---- BOSS (new files in sprites/) ----
+        // ---- ENEMY 2 (new) ----
+        enemy2Walk[DIR_DOWN][0] = loadImage("sprites/enemy2_down1.png");
+        enemy2Walk[DIR_DOWN][1] = loadImage("sprites/enemy2_down2.png");
+
+        enemy2Walk[DIR_UP][0] = loadImage("sprites/enemy2_up1.png");
+        enemy2Walk[DIR_UP][1] = loadImage("sprites/enemy2_up2.png");
+
+        BufferedImage e2L1 = loadImage("sprites/enemy2_leftright1.png");
+        BufferedImage e2L2 = loadImage("sprites/enemy2_leftright2.png");
+
+        enemy2Walk[DIR_LEFT][0] = mirrorHorizontally(e2L1);
+        enemy2Walk[DIR_LEFT][1] = mirrorHorizontally(e2L2);
+        enemy2Walk[DIR_RIGHT][0] = e2L1;
+        enemy2Walk[DIR_RIGHT][1] = e2L2;
+
+        // ---- BOSS ----
         bossWalkUp = loadImage("sprites/boss_walkup.png");
         bossWalkDown = loadImage("sprites/boss_walkdown.png");
-        bossWalkLR = loadImage("sprites/boss_walkleftright.png"); // base RIGHT
+        bossWalkLR = loadImage("sprites/boss_walkleftright.png");
         bossWalkLRLeft = mirrorHorizontally(bossWalkLR);
-
         bossAttack = loadImage("sprites/boss_attack.png");
         bossDeath = loadImage("sprites/boss_death.png");
+
+        // ---- OBSTACLES ----
+        obstacles = loadImage("sprites/obstacles.png");
 
         // ---- DOOR ----
         doorOpened = loadImage("sprites/door_opened.png");

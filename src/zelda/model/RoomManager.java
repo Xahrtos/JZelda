@@ -54,8 +54,8 @@ public class RoomManager {
         r.setTile(0, midY - 1, Room.TILE_FLOOR);
         r.setTile(0, midY, Room.TILE_FLOOR);
 
-        r.setTile(Room.COLS - 1, midY - 1, Room.TILE_FLOOR);
-        r.setTile(Room.COLS - 1, midY, Room.TILE_FLOOR);
+       // r.setTile(Room.COLS - 1, midY - 1, Room.TILE_FLOOR);
+        //r.setTile(Room.COLS - 1, midY, Room.TILE_FLOOR);
 
         // porta top-center: inizialmente CHIUSA => lasciamo SOLID
         // (verrà aperta dal GameModel quando il boss muore)
@@ -131,7 +131,7 @@ public class RoomManager {
                 for (int x = 3; x < 13; x++) r.setTile(x, oy, Room.TILE_SOLID);
             }
             case 1 -> {
-                int ox = 8;
+                int ox = 6;
                 for (int y = 2; y < 9; y++) r.setTile(ox, y, Room.TILE_SOLID);
             }
             case 2 -> {

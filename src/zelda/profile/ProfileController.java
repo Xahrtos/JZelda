@@ -21,13 +21,15 @@ public class ProfileController {
         model.updateSelectedNickname(nickname == null ? "" : nickname.trim());
     }
 
-    // SOLO DEFAULT: salva direttamente il path relativo scelto dalla combo
-    public void onChooseDefaultAvatarPath(String path) {
-        model.updateSelectedAvatar(path == null ? "" : path.trim());
+   
+
+    public void onSave() {
         model.save();
     }
 
-    public void onSave() {
+    // ---- DELETE PROFILE ----
+    public void onDeleteProfile(String profileId) {
+        model.deleteProfile(profileId);
         model.save();
     }
 }
