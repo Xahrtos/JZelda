@@ -110,20 +110,24 @@ public class Assets {
         // ---- ENEMY 1 ----
         enemy = loadImage("sprites/enemy_1.png");
 
-        // ---- ENEMY 2 (new) ----
+     // ---- ENEMY 2 (new) ----
         enemy2Walk[DIR_DOWN][0] = loadImage("sprites/enemy2_down1.png");
         enemy2Walk[DIR_DOWN][1] = loadImage("sprites/enemy2_down2.png");
 
         enemy2Walk[DIR_UP][0] = loadImage("sprites/enemy2_up1.png");
         enemy2Walk[DIR_UP][1] = loadImage("sprites/enemy2_up2.png");
 
-        BufferedImage e2L1 = loadImage("sprites/enemy2_leftright1.png");
-        BufferedImage e2L2 = loadImage("sprites/enemy2_leftright2.png");
+        // I file sorgenti puntano a DESTRA
+        BufferedImage e2R1 = loadImage("sprites/enemy2_leftright1.png");
+        BufferedImage e2R2 = loadImage("sprites/enemy2_leftright2.png");
 
-        enemy2Walk[DIR_LEFT][0] = mirrorHorizontally(e2L1);
-        enemy2Walk[DIR_LEFT][1] = mirrorHorizontally(e2L2);
-        enemy2Walk[DIR_RIGHT][0] = e2L1;
-        enemy2Walk[DIR_RIGHT][1] = e2L2;
+        // Assegnazione standard a DESTRA
+        enemy2Walk[DIR_RIGHT][0] = e2R1;
+        enemy2Walk[DIR_RIGHT][1] = e2R2;
+
+        // Assegnazione SPECCHIATA a SINISTRA
+        enemy2Walk[DIR_LEFT][0] = mirrorHorizontally(e2R1);
+        enemy2Walk[DIR_LEFT][1] = mirrorHorizontally(e2R2);
 
         // ---- BOSS ----
         bossWalkUp = loadImage("sprites/boss_walkup.png");

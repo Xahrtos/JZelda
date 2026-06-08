@@ -65,7 +65,7 @@ public class GameModel extends ObservableModel {
     private boolean enemyAlive = true;
     private int enemyHp = 3;
 
-    private float enemyX = 8 * TILE_SIZE;
+    private float enemyX = 4 * TILE_SIZE;
     private float enemyY = 4 * TILE_SIZE;
 
     private float enemyVx = 0f;
@@ -75,26 +75,22 @@ public class GameModel extends ObservableModel {
     private float enemyInvulnT = 0f;
     private float enemyBlinkT = 0f;
 
-    // ---- ENEMY 2 (patrol + charge) ----
-    private boolean enemy2Alive = true;
-    private int enemy2Hp = 2;
-
-    private float enemy2X = 10 * TILE_SIZE;
-    private float enemy2Y = 6 * TILE_SIZE;
-
-    private float enemy2Vx = 0f;
-    private float enemy2Vy = 0f;
-    private Facing enemy2Facing = Facing.RIGHT;
-
-    private float enemy2DirTimer = 0f;
-    private boolean enemy2IsCharging = false;
-
-    private float enemy2InvulnT = 0f;
-    private float enemy2BlinkT = 0f;
-
-    private int enemy2AnimFrame = 0;
-    private float enemy2AnimT = 0f;
-    private static final float ENEMY2_ANIM_FRAME_TIME = 0.16f;
+    // ---- ENEMY 2 (Array di 2 Unità) ----
+    private static final int MAX_ENEMY2_UNITS = 2;
+    
+    private final boolean[] enemy2Alive = new boolean[MAX_ENEMY2_UNITS];
+    private final int[] enemy2Hp = new int[MAX_ENEMY2_UNITS];
+    private final float[] enemy2X = new float[MAX_ENEMY2_UNITS];
+    private final float[] enemy2Y = new float[MAX_ENEMY2_UNITS];
+    private final float[] enemy2Vx = new float[MAX_ENEMY2_UNITS];
+    private final float[] enemy2Vy = new float[MAX_ENEMY2_UNITS];
+    private final Facing[] enemy2Facing = new Facing[MAX_ENEMY2_UNITS];
+    private final float[] enemy2DirTimer = new float[MAX_ENEMY2_UNITS];
+    private final boolean[] enemy2IsCharging = new boolean[MAX_ENEMY2_UNITS];
+    private final float[] enemy2InvulnT = new float[MAX_ENEMY2_UNITS];
+    private final float[] enemy2BlinkT = new float[MAX_ENEMY2_UNITS];
+    private final int[] enemy2AnimFrame = new int[MAX_ENEMY2_UNITS];
+    private final float[] enemy2AnimT = new float[MAX_ENEMY2_UNITS];
 
     // ---- PLAYER INVULN ----
     private float playerInvulnT = 0f;
@@ -123,7 +119,7 @@ public class GameModel extends ObservableModel {
     private float potionLandY = 0f;
 
     // =========================
-    // BOSS (refactor) + PROJECTILES
+    // BOSS + PROJECTILES
     // =========================
     private float bossBlinkT = 0f;
     private static final float BOSS_BLINK_SECONDS = 0.35f;
@@ -138,18 +134,13 @@ public class GameModel extends ObservableModel {
     private boolean bossAlive = true;
     private int bossHp = 10;
 
-    // boss position in room pixel coordinates
     private float bossX = 8 * TILE_SIZE;
     private float bossY = 4 * TILE_SIZE;
     private Facing bossFacing = Facing.DOWN;
 
-    // float/bobbing
     private float bossFloatT = 0f;
-
-    // projectile timer
     private float bossShootT = 0f;
 
-    // projectiles: simple fixed pool
     private static final int MAX_BOSS_BULLETS = 16;
 
     private final boolean[] bossBulletAlive = new boolean[MAX_BOSS_BULLETS];
@@ -159,50 +150,54 @@ public class GameModel extends ObservableModel {
     private final float[] bossBulletVy = new float[MAX_BOSS_BULLETS];
 
     // ---- ENEMY 2 getters/setters ----
-    public boolean isEnemy2Alive() { return enemy2Alive; }
-    public int getEnemy2Hp() { return enemy2Hp; }
-    public float getEnemy2X() { return enemy2X; }
-    public float getEnemy2Y() { return enemy2Y; }
-    public float getEnemy2Vx() { return enemy2Vx; }
-    public float getEnemy2Vy() { return enemy2Vy; }
-    public Facing getEnemy2Facing() { return enemy2Facing; }
-    public int getEnemy2AnimFrame() { return enemy2AnimFrame; }
-    public boolean isEnemy2Charging() { return enemy2IsCharging; }
-    public float getEnemy2DirTimer() { return enemy2DirTimer; }
-    public boolean isEnemy2Blinking() { return enemy2BlinkT > 0f; }
-    public float getEnemy2BlinkT() { return enemy2BlinkT; }
+    public int getEnemy2MaxUnits() { return MAX_ENEMY2_UNITS; }
+    public boolean isEnemy2Alive(int i) { return enemy2Alive[i]; }
+    public int getEnemy2Hp(int i) { return enemy2Hp[i]; }
+    public float getEnemy2X(int i) { return enemy2X[i]; }
+    public float getEnemy2Y(int i) { return enemy2Y[i]; }
+    public float getEnemy2Vx(int i) { return enemy2Vx[i]; }
+    public float getEnemy2Vy(int i) { return enemy2Vy[i]; }
+    public Facing getEnemy2Facing(int i) { return enemy2Facing[i]; }
+    public int getEnemy2AnimFrame(int i) { return enemy2AnimFrame[i]; }
+    public boolean isEnemy2Charging(int i) { return enemy2IsCharging[i]; }
+    public float getEnemy2DirTimer(int i) { return enemy2DirTimer[i]; }
+    public boolean isEnemy2Blinking(int i) { return enemy2BlinkT[i] > 0f; }
+    public float getEnemy2BlinkT(int i) { return enemy2BlinkT[i]; }
+    public float getEnemy2AnimT(int i) { return enemy2AnimT[i]; }
 
-    public void setEnemy2Pos(float x, float y) {
-        enemy2X = x;
-        enemy2Y = y;
+    public void setEnemy2Pos(int i, float x, float y) {
+        enemy2X[i] = x;
+        enemy2Y[i] = y;
         requestRepaint();
     }
 
-    public void setEnemy2Vel(float vx, float vy) {
-        enemy2Vx = vx;
-        enemy2Vy = vy;
+    public void setEnemy2Vel(int i, float vx, float vy) {
+        enemy2Vx[i] = vx;
+        enemy2Vy[i] = vy;
     }
 
-    public void setEnemy2Facing(Facing f) { enemy2Facing = f; }
-    public void setEnemy2DirTimer(float t) { enemy2DirTimer = t; }
-    public void setEnemy2IsCharging(boolean v) { enemy2IsCharging = v; }
-    public void setEnemy2AnimT(float t) { enemy2AnimT = t; }
-    public void setEnemy2AnimFrame(int f) { enemy2AnimFrame = f; }
+    public void setEnemy2Facing(int i, Facing f) { enemy2Facing[i] = f; }
+    public void setEnemy2DirTimer(int i, float t) { enemy2DirTimer[i] = t; }
+    public void setEnemy2IsCharging(int i, boolean v) { enemy2IsCharging[i] = v; }
+    public void setEnemy2AnimT(int i, float t) { enemy2AnimT[i] = t; }
+    public void setEnemy2AnimFrame(int i, int f) { enemy2AnimFrame[i] = f; }
 
     public void updateEnemy2Timers(float dt) {
-        if (enemy2InvulnT > 0f) enemy2InvulnT = Math.max(0f, enemy2InvulnT - dt);
-        if (enemy2BlinkT > 0f) enemy2BlinkT = Math.max(0f, enemy2BlinkT - dt);
+        for (int i = 0; i < MAX_ENEMY2_UNITS; i++) {
+            if (enemy2InvulnT[i] > 0f) enemy2InvulnT[i] = Math.max(0f, enemy2InvulnT[i] - dt);
+            if (enemy2BlinkT[i] > 0f) enemy2BlinkT[i] = Math.max(0f, enemy2BlinkT[i] - dt);
+        }
     }
 
-    public void hitEnemy2(int dmg, float invulnSeconds, float blinkSeconds) {
-        if (!enemy2Alive) return;
-        if (enemy2InvulnT > 0f) return;
+    public void hitEnemy2(int i, int dmg, float invulnSeconds, float blinkSeconds) {
+        if (!enemy2Alive[i]) return;
+        if (enemy2InvulnT[i] > 0f) return;
 
-        enemy2Hp = Math.max(0, enemy2Hp - dmg);
-        if (enemy2Hp == 0) enemy2Alive = false;
+        enemy2Hp[i] = Math.max(0, enemy2Hp[i] - dmg);
+        if (enemy2Hp[i] == 0) enemy2Alive[i] = false;
 
-        enemy2InvulnT = Math.max(enemy2InvulnT, invulnSeconds);
-        enemy2BlinkT = Math.max(enemy2BlinkT, blinkSeconds);
+        enemy2InvulnT[i] = Math.max(enemy2InvulnT[i], invulnSeconds);
+        enemy2BlinkT[i] = Math.max(enemy2BlinkT[i], blinkSeconds);
 
         requestRepaint();
     }
@@ -262,7 +257,7 @@ public class GameModel extends ObservableModel {
         currentRoomIndex = nextRoomIndex;
         transitioning = false;
 
-        if (currentRoomIndex == RoomManager.SHOP_ROOM_INDEX) {
+        if (currentRoomIndex == RoomManager.SHOP_ROOM_INDEX || currentRoomIndex % 2 != 0) {
             respawnArenaEntities();
         }
 
@@ -272,7 +267,8 @@ public class GameModel extends ObservableModel {
     private void respawnArenaEntities() {
         enemyAlive = true;
         enemyHp = 3;
-        enemyX = 8 * TILE_SIZE;
+        // Spostato sicuro al centro stanza (Colonna 4, Riga 4)
+        enemyX = 4 * TILE_SIZE;
         enemyY = 4 * TILE_SIZE;
         enemyVx = 0f;
         enemyVy = 0f;
@@ -280,9 +276,25 @@ public class GameModel extends ObservableModel {
         enemyInvulnT = 0f;
         enemyBlinkT = 0f;
 
+        for (int i = 0; i < MAX_ENEMY2_UNITS; i++) {
+            enemy2Alive[i] = true;
+            enemy2Hp[i] = 2;
+            // Spawn al centro (Colonna 7 e 9, Riga 5) per non incastrarsi nei muri a causa della nuova dimensione 64x64
+            enemy2X[i] = (7 + (i * 2)) * TILE_SIZE;
+            enemy2Y[i] = 5 * TILE_SIZE;
+            enemy2Vx[i] = 0f;
+            enemy2Vy[i] = 0f;
+            enemy2Facing[i] = Facing.RIGHT;
+            enemy2DirTimer[i] = 0f;
+            enemy2IsCharging[i] = false;
+            enemy2InvulnT[i] = 0f;
+            enemy2BlinkT[i] = 0f;
+            enemy2AnimFrame[i] = 0;
+            enemy2AnimT[i] = 0f;
+        }
+
         rupeeAlive = false;
         rupeeAnimating = false;
-
         potionAlive = false;
         potionAnimating = false;
     }
@@ -551,7 +563,6 @@ public class GameModel extends ObservableModel {
         if (!bossAlive) return;
 
         bossHp = Math.max(0, bossHp - dmg);
-
         bossBlinkT = Math.max(bossBlinkT, BOSS_BLINK_SECONDS);
 
         if (bossHp == 0) {
@@ -634,7 +645,7 @@ public class GameModel extends ObservableModel {
 
         enemyAlive = true;
         enemyHp = 3;
-        enemyX = 8 * TILE_SIZE;
+        enemyX = 4 * TILE_SIZE;
         enemyY = 4 * TILE_SIZE;
         enemyVx = 0f;
         enemyVy = 0f;
@@ -642,19 +653,21 @@ public class GameModel extends ObservableModel {
         enemyInvulnT = 0f;
         enemyBlinkT = 0f;
 
-        enemy2Alive = true;
-        enemy2Hp = 2;
-        enemy2X = 10 * TILE_SIZE;
-        enemy2Y = 6 * TILE_SIZE;
-        enemy2Vx = 0f;
-        enemy2Vy = 0f;
-        enemy2Facing = Facing.RIGHT;
-        enemy2DirTimer = 0f;
-        enemy2IsCharging = false;
-        enemy2InvulnT = 0f;
-        enemy2BlinkT = 0f;
-        enemy2AnimFrame = 0;
-        enemy2AnimT = 0f;
+        for (int i = 0; i < MAX_ENEMY2_UNITS; i++) {
+            enemy2Alive[i] = true;
+            enemy2Hp[i] = 2;
+            enemy2X[i] = (7 + (i * 2)) * TILE_SIZE;
+            enemy2Y[i] = 5 * TILE_SIZE;
+            enemy2Vx[i] = 0f;
+            enemy2Vy[i] = 0f;
+            enemy2Facing[i] = Facing.RIGHT;
+            enemy2DirTimer[i] = 0f;
+            enemy2IsCharging[i] = false;
+            enemy2InvulnT[i] = 0f;
+            enemy2BlinkT[i] = 0f;
+            enemy2AnimFrame[i] = 0;
+            enemy2AnimT[i] = 0f;
+        }
 
         bossBlinkT = 0f;
         bossAlive = true;
