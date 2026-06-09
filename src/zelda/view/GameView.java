@@ -20,10 +20,14 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
     private static final float SLIDE_DURATION = 0.80f;
     private static final int PLAYER_ZOOM = 2;
 
-    // ---- ENEMY / DROPS RENDER ----
+    // ---- ENEMY RENDER ----
     private static final float ENEMY_SCALE = 0.5f;  // 56x58 -> 28x29
     private static final float POTION_SCALE = 0.5f; // 64x72 -> 32x36
     private static final int BOSS_ROOM_INDEX = 7;
+
+    // ---- ENEMY2 RENDER (Dimensioni originali senza scale) ----
+    private static final int ENEMY2_DRAW_W = 48;
+    private static final int ENEMY2_DRAW_H = 48;
 
     // ---- BOSS FLOAT ----
     private static final float BOSS_FLOAT_FREQ = 1.25f;
@@ -212,7 +216,7 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
             // draw order: enemy/drops sotto
             drawEnemy(g, roomX, roomY);
             
-            // Rendering dei 2 Nuovi Nemici (Stanze Dispari)
+            // Rendering del Nemico 2 (Enemy2 - Stanze dispari)
             drawEnemy2Units(g, roomX, roomY);
 
             // boss + bullets
@@ -498,7 +502,9 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         if (!model.isEnemyAlive()) return;
         if (Assets.enemy == null) return;
 
-        if (model.getCurrentRoomIndex() != RoomManager.SHOP_ROOM_INDEX) return;
+        int roomIdx = model.getCurrentRoomIndex();
+        // Enemy1 solo in stanze pari (non shop, non prima stanza)
+        if (roomIdx == 0 || roomIdx == RoomManager.SHOP_INDEX || roomIdx % 2 != 0) return;
         if (model.isTransitioning() || sliding) return;
 
         int ex = roomX + Math.round(model.getEnemyX());
@@ -524,18 +530,21 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
     }
 
     /**
-     * Disegna le 2 unità del Nemico 2 in tutte le stanze ad indice dispari
+     * Disegna Enemy2 (2 unità) nelle stanze ad indice dispari (escluso shop)
+     * Dimensioni: 64x64 (raddoppiato da 32x32)
      */
     private void drawEnemy2Units(Graphics2D g, int roomX, int roomY) {
-        // Controllo stanza dispari
-        if (model.getCurrentRoomIndex() % 2 == 0) return;
+        int roomIdx = model.getCurrentRoomIndex();
+        
+        // Enemy2 solo in stanze dispari (non shop)
+        if (roomIdx == RoomManager.SHOP_INDEX || roomIdx % 2 == 0) return;
         if (model.isTransitioning() || sliding) return;
 
         // Iteriamo per le 2 unità richieste
         for (int i = 0; i < 2; i++) {
             if (!model.isEnemy2Alive(i)) continue;
 
-            // Logica del Blink adattata all'unità (tramite il tempo o flag del model)
+            // Logica del Blink adattata all'unità
             if (!model.isEnemy2Blinking(i) || (System.currentTimeMillis() / 50) % 2 == 0) {
                 
                 int dirIndex = Assets.DIR_DOWN;
@@ -556,11 +565,12 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
                     int ex = roomX + Math.round(model.getEnemy2X(i));
                     int ey = roomY + Math.round(model.getEnemy2Y(i));
 
-                    g.drawImage(enemy2Sprite, ex, ey, spriteW, spriteH, null);
+                    // Disegna con le dimensioni corrette: 64x64
+                    g.drawImage(enemy2Sprite, ex, ey, ENEMY2_DRAW_W, ENEMY2_DRAW_H, null);
                 } else {
                     // Fallback se le grafiche non sono pronte
                     g.setColor(Color.ORANGE);
-                    g.fillRect(roomX + Math.round(model.getEnemy2X(i)), roomY + Math.round(model.getEnemy2Y(i)), 32, 32);
+                    g.fillRect(roomX + Math.round(model.getEnemy2X(i)), roomY + Math.round(model.getEnemy2Y(i)), ENEMY2_DRAW_W, ENEMY2_DRAW_H);
                 }
             }
         }
@@ -570,7 +580,8 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         if (!model.isRupeeAlive()) return;
         if (Assets.rupee == null) return;
 
-        if (model.getCurrentRoomIndex() != RoomManager.SHOP_ROOM_INDEX) return;
+        int roomIdx = model.getCurrentRoomIndex();
+        if (roomIdx == RoomManager.SHOP_INDEX || (roomIdx == 0)) return;
         if (model.isTransitioning() || sliding) return;
 
         int rx = roomX + Math.round(model.getRupeeX());
@@ -587,7 +598,8 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         if (!model.isPotionAlive()) return;
         if (Assets.potion == null) return;
 
-        if (model.getCurrentRoomIndex() != RoomManager.SHOP_ROOM_INDEX) return;
+        int roomIdx = model.getCurrentRoomIndex();
+        if (roomIdx == RoomManager.SHOP_INDEX || (roomIdx == 0)) return;
         if (model.isTransitioning() || sliding) return;
 
         int px = roomX + Math.round(model.getPotionX());

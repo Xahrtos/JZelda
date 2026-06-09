@@ -1,5 +1,8 @@
 package zelda.model;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class GameModel extends ObservableModel {
 
     public static final int TILE_SIZE = 32;
@@ -61,23 +64,23 @@ public class GameModel extends ObservableModel {
     private boolean attacking = false;
     private int attackFrame = 0;
 
-    // ---- ENEMY 1 ----
-    private boolean enemyAlive = true;
-    private int enemyHp = 3;
+    // ---- ENEMY 1 (now supports 2 units) ----
+    private static final int MAX_ENEMY1_UNITS = 2;
+    private final boolean[] enemyAlive = new boolean[MAX_ENEMY1_UNITS];
+    private final int[] enemyHp = new int[MAX_ENEMY1_UNITS];
+    private final float[] enemyX = new float[MAX_ENEMY1_UNITS];
+    private final float[] enemyY = new float[MAX_ENEMY1_UNITS];
+    private final float[] enemyVx = new float[MAX_ENEMY1_UNITS];
+    private final float[] enemyVy = new float[MAX_ENEMY1_UNITS];
+    private final float[] enemyDirTimer = new float[MAX_ENEMY1_UNITS];
+    private final float[] enemyInvulnT = new float[MAX_ENEMY1_UNITS];
+    private final float[] enemyBlinkT = new float[MAX_ENEMY1_UNITS];
 
-    private float enemyX = 4 * TILE_SIZE;
-    private float enemyY = 4 * TILE_SIZE;
+    // Backwards-compat single-enemy getters map to unit 0
 
-    private float enemyVx = 0f;
-    private float enemyVy = 0f;
-    private float enemyDirTimer = 0f;
+    // ---- ENEMY 2 (Array, now single unit as requested) ----
+    private static final int MAX_ENEMY2_UNITS = 1;
 
-    private float enemyInvulnT = 0f;
-    private float enemyBlinkT = 0f;
-
-    // ---- ENEMY 2 (Array di 2 Unità) ----
-    private static final int MAX_ENEMY2_UNITS = 2;
-    
     private final boolean[] enemy2Alive = new boolean[MAX_ENEMY2_UNITS];
     private final int[] enemy2Hp = new int[MAX_ENEMY2_UNITS];
     private final float[] enemy2X = new float[MAX_ENEMY2_UNITS];
@@ -202,6 +205,96 @@ public class GameModel extends ObservableModel {
         requestRepaint();
     }
 
+    // ---- ENEMY 1 API (new array-based)
+    public int getEnemyMaxUnits() { return MAX_ENEMY1_UNITS; }
+    public boolean isEnemyAlive(int i) { return enemyAlive[i]; }
+    public int getEnemyHp(int i) { return enemyHp[i]; }
+    public float getEnemyX(int i) { return enemyX[i]; }
+    public float getEnemyY(int i) { return enemyY[i]; }
+    public float getEnemyVx(int i) { return enemyVx[i]; }
+    public float getEnemyVy(int i) { return enemyVy[i]; }
+    public float getEnemyDirTimer(int i) { return enemyDirTimer[i]; }
+    public boolean isEnemyInvulnerable(int i) { return enemyInvulnT[i] > 0f; }
+    public boolean isEnemyBlinking(int i) { return enemyBlinkT[i] > 0f; }
+    public float getEnemyBlinkT(int i) { return enemyBlinkT[i]; }
+
+    public void setEnemyPos(int i, float x, float y) {
+        enemyX[i] = x;
+        enemyY[i] = y;
+        requestRepaint();
+    }
+
+    public void setEnemyVel(int i, float vx, float vy) {
+        enemyVx[i] = vx;
+        enemyVy[i] = vy;
+    }
+
+    public void setEnemyDirTimer(int i, float t) { enemyDirTimer[i] = t; }
+
+    public void updateEnemyTimers(float dt) {
+        for (int i = 0; i < MAX_ENEMY1_UNITS; i++) {
+            if (enemyInvulnT[i] > 0f) enemyInvulnT[i] = Math.max(0f, enemyInvulnT[i] - dt);
+            if (enemyBlinkT[i] > 0f) enemyBlinkT[i] = Math.max(0f, enemyBlinkT[i] - dt);
+        }
+    }
+
+    public void hitEnemy(int i, int dmg, float invulnSeconds, float blinkSeconds) {
+        if (!enemyAlive[i]) return;
+        if (enemyInvulnT[i] > 0f) return;
+
+        enemyHp[i] = Math.max(0, enemyHp[i] - dmg);
+        if (enemyHp[i] == 0) enemyAlive[i] = false;
+
+        enemyInvulnT[i] = Math.max(enemyInvulnT[i], invulnSeconds);
+        enemyBlinkT[i] = Math.max(enemyBlinkT[i], blinkSeconds);
+
+        requestRepaint();
+    }
+
+    // Backwards-compatible single-enemy accessors mapped to unit 0
+    public boolean isEnemyAlive() { return enemyAlive[0]; }
+    public int getEnemyHp() { return enemyHp[0]; }
+    public float getEnemyX() { return enemyX[0]; }
+    public float getEnemyY() { return enemyY[0]; }
+    public void setEnemyPos(float x, float y) { setEnemyPos(0, x, y); }
+    public float getEnemyVx() { return enemyVx[0]; }
+    public float getEnemyVy() { return enemyVy[0]; }
+    public void setEnemyVel(float vx, float vy) { setEnemyVel(0, vx, vy); }
+    public float getEnemyDirTimer() { return enemyDirTimer[0]; }
+    public void setEnemyDirTimer(float t) { setEnemyDirTimer(0, t); }
+    public boolean isEnemyInvulnerable() { return isEnemyInvulnerable(0); }
+    public boolean isEnemyBlinking() { return isEnemyBlinking(0); }
+    public float getEnemyBlinkT() { return getEnemyBlinkT(0); }
+
+    // Backward-compatible overload for existing single-enemy calls
+    public void hitEnemy(int dmg, float invulnSeconds, float blinkSeconds) {
+        hitEnemy(0, dmg, invulnSeconds, blinkSeconds);
+    }
+
+    // =========================
+    // Player helper APIs (restored for compatibility)
+    // =========================
+    public boolean isPlayerInvulnerable() { return playerInvulnT > 0f; }
+    public boolean isPlayerBlinking() { return playerBlinkT > 0f; }
+    public float getPlayerBlinkT() { return playerBlinkT; }
+
+    public void updatePlayerTimers(float dt) {
+        if (playerInvulnT > 0f) playerInvulnT = Math.max(0f, playerInvulnT - dt);
+        if (playerBlinkT > 0f) playerBlinkT = Math.max(0f, playerBlinkT - dt);
+    }
+
+    public void hitPlayer(int dmg, float invulnSeconds, float blinkSeconds) {
+        if (playerInvulnT > 0f) return;
+        damagePlayer(dmg);
+        playerInvulnT = Math.max(playerInvulnT, invulnSeconds);
+        playerBlinkT = Math.max(playerBlinkT, blinkSeconds);
+        requestRepaint();
+    }
+
+    // =========================
+    // Remaining APIs (player, boss, drops) unchanged
+    // =========================
+
     public Room getRoom() { return roomManager.getRoom(currentRoomIndex); }
     public Room getNextRoom() { return roomManager.getRoom(nextRoomIndex); }
     public int getCurrentRoomIndex() { return currentRoomIndex; }
@@ -257,7 +350,8 @@ public class GameModel extends ObservableModel {
         currentRoomIndex = nextRoomIndex;
         transitioning = false;
 
-        if (currentRoomIndex == RoomManager.SHOP_ROOM_INDEX || currentRoomIndex % 2 != 0) {
+        // Respawn arena entities for normal rooms (exclude start(0), boss, and shop)
+        if (currentRoomIndex != 0 && currentRoomIndex != RoomManager.PLAY_LAST_INDEX && currentRoomIndex != RoomManager.SHOP_INDEX) {
             respawnArenaEntities();
         }
 
@@ -265,32 +359,49 @@ public class GameModel extends ObservableModel {
     }
 
     private void respawnArenaEntities() {
-        enemyAlive = true;
-        enemyHp = 3;
-        // Spostato sicuro al centro stanza (Colonna 4, Riga 4)
-        enemyX = 4 * TILE_SIZE;
-        enemyY = 4 * TILE_SIZE;
-        enemyVx = 0f;
-        enemyVy = 0f;
-        enemyDirTimer = 0f;
-        enemyInvulnT = 0f;
-        enemyBlinkT = 0f;
+        // Decide behavior based on current room parity
+        if (currentRoomIndex % 2 == 0) {
+            // EVEN rooms: spawn 2 x Enemy1 and disable Enemy2
+            // spawn them around the room center to avoid walls/obstacles
+            float centerX = 6 * TILE_SIZE; // room center x (matches player start)
+            float centerY = 5 * TILE_SIZE; // room center y (adjusted)
+            enemyAlive[0] = true;
+            enemyAlive[1] = true;
+            enemyHp[0] = 3;
+            enemyHp[1] = 3;
+            enemyX[0] = centerX - TILE_SIZE; // left of center
+            enemyY[0] = centerY;
+            enemyX[1] = centerX + TILE_SIZE; // right of center
+            enemyY[1] = centerY;
+            for (int i = 0; i < MAX_ENEMY1_UNITS; i++) {
+                enemyVx[i] = 0f;
+                enemyVy[i] = 0f;
+                enemyDirTimer[i] = 0f;
+                enemyInvulnT[i] = 0f;
+                enemyBlinkT[i] = 0f;
+            }
 
-        for (int i = 0; i < MAX_ENEMY2_UNITS; i++) {
-            enemy2Alive[i] = true;
-            enemy2Hp[i] = 2;
-            // Spawn al centro (Colonna 7 e 9, Riga 5) per non incastrarsi nei muri a causa della nuova dimensione 64x64
-            enemy2X[i] = (7 + (i * 2)) * TILE_SIZE;
-            enemy2Y[i] = 5 * TILE_SIZE;
-            enemy2Vx[i] = 0f;
-            enemy2Vy[i] = 0f;
-            enemy2Facing[i] = Facing.RIGHT;
-            enemy2DirTimer[i] = 0f;
-            enemy2IsCharging[i] = false;
-            enemy2InvulnT[i] = 0f;
-            enemy2BlinkT[i] = 0f;
-            enemy2AnimFrame[i] = 0;
-            enemy2AnimT[i] = 0f;
+            // disable enemy2
+            for (int i = 0; i < MAX_ENEMY2_UNITS; i++) enemy2Alive[i] = false;
+        } else {
+            // ODD rooms: spawn 1 x Enemy2 (as requested) and disable Enemy1
+            for (int i = 0; i < MAX_ENEMY1_UNITS; i++) enemyAlive[i] = false;
+
+            for (int i = 0; i < MAX_ENEMY2_UNITS; i++) {
+                enemy2Alive[i] = true;
+                enemy2Hp[i] = 2;
+                enemy2X[i] = 7 * TILE_SIZE;
+                enemy2Y[i] = 5 * TILE_SIZE;
+                enemy2Vx[i] = 0f;
+                enemy2Vy[i] = 0f;
+                enemy2Facing[i] = Facing.RIGHT;
+                enemy2DirTimer[i] = 0f;
+                enemy2IsCharging[i] = false;
+                enemy2InvulnT[i] = 0f;
+                enemy2BlinkT[i] = 0f;
+                enemy2AnimFrame[i] = 0;
+                enemy2AnimT[i] = 0f;
+            }
         }
 
         rupeeAlive = false;
@@ -337,7 +448,6 @@ public class GameModel extends ObservableModel {
         fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
     }
 
-    // ---- shop ui ----
     public boolean isShowInteractPrompt() { return showInteractPrompt; }
     public void setShowInteractPrompt(boolean v) {
         if (showInteractPrompt == v) return;
@@ -386,69 +496,6 @@ public class GameModel extends ObservableModel {
             shopMessageT = Math.max(0f, shopMessageT - dt);
             if (shopMessageT == 0f) shopMessage = "";
         }
-    }
-
-    // ---- enemy 1 ----
-    public boolean isEnemyAlive() { return enemyAlive; }
-    public int getEnemyHp() { return enemyHp; }
-
-    public float getEnemyX() { return enemyX; }
-    public float getEnemyY() { return enemyY; }
-
-    public void setEnemyPos(float x, float y) {
-        enemyX = x;
-        enemyY = y;
-        requestRepaint();
-    }
-
-    public float getEnemyVx() { return enemyVx; }
-    public float getEnemyVy() { return enemyVy; }
-    public void setEnemyVel(float vx, float vy) {
-        enemyVx = vx;
-        enemyVy = vy;
-    }
-
-    public float getEnemyDirTimer() { return enemyDirTimer; }
-    public void setEnemyDirTimer(float t) { enemyDirTimer = t; }
-
-    public boolean isEnemyInvulnerable() { return enemyInvulnT > 0f; }
-    public boolean isEnemyBlinking() { return enemyBlinkT > 0f; }
-    public float getEnemyBlinkT() { return enemyBlinkT; }
-
-    public void updateEnemyTimers(float dt) {
-        if (enemyInvulnT > 0f) enemyInvulnT = Math.max(0f, enemyInvulnT - dt);
-        if (enemyBlinkT > 0f) enemyBlinkT = Math.max(0f, enemyBlinkT - dt);
-    }
-
-    public void hitEnemy(int dmg, float invulnSeconds, float blinkSeconds) {
-        if (!enemyAlive) return;
-        if (enemyInvulnT > 0f) return;
-
-        enemyHp = Math.max(0, enemyHp - dmg);
-        if (enemyHp == 0) enemyAlive = false;
-
-        enemyInvulnT = Math.max(enemyInvulnT, invulnSeconds);
-        enemyBlinkT = Math.max(enemyBlinkT, blinkSeconds);
-
-        requestRepaint();
-    }
-
-    // ---- player invuln ----
-    public boolean isPlayerInvulnerable() { return playerInvulnT > 0f; }
-    public boolean isPlayerBlinking() { return playerBlinkT > 0f; }
-    public float getPlayerBlinkT() { return playerBlinkT; }
-
-    public void updatePlayerTimers(float dt) {
-        if (playerInvulnT > 0f) playerInvulnT = Math.max(0f, playerInvulnT - dt);
-        if (playerBlinkT > 0f) playerBlinkT = Math.max(0f, playerBlinkT - dt);
-    }
-
-    public void hitPlayer(int dmg, float invulnSeconds, float blinkSeconds) {
-        if (playerInvulnT > 0f) return;
-        damagePlayer(dmg);
-        playerInvulnT = Math.max(playerInvulnT, invulnSeconds);
-        playerBlinkT = Math.max(playerBlinkT, blinkSeconds);
-        requestRepaint();
     }
 
     // ---- rupee ----
@@ -643,20 +690,30 @@ public class GameModel extends ObservableModel {
         potionAlive = false;
         potionAnimating = false;
 
-        enemyAlive = true;
-        enemyHp = 3;
-        enemyX = 4 * TILE_SIZE;
-        enemyY = 4 * TILE_SIZE;
-        enemyVx = 0f;
-        enemyVy = 0f;
-        enemyDirTimer = 0f;
-        enemyInvulnT = 0f;
-        enemyBlinkT = 0f;
+        // Enemy1 reset (spawned near room center)
+        float centerX = 6 * TILE_SIZE;
+        float centerY = 5 * TILE_SIZE;
+        enemyAlive[0] = true;
+        enemyAlive[1] = true;
+        enemyHp[0] = 3;
+        enemyHp[1] = 3;
+        enemyX[0] = centerX - TILE_SIZE;
+        enemyY[0] = centerY;
+        enemyX[1] = centerX + TILE_SIZE;
+        enemyY[1] = centerY;
+        for (int i = 0; i < MAX_ENEMY1_UNITS; i++) {
+            enemyVx[i] = 0f;
+            enemyVy[i] = 0f;
+            enemyDirTimer[i] = 0f;
+            enemyInvulnT[i] = 0f;
+            enemyBlinkT[i] = 0f;
+        }
 
+        // Enemy2 reset (single unit)
         for (int i = 0; i < MAX_ENEMY2_UNITS; i++) {
             enemy2Alive[i] = true;
             enemy2Hp[i] = 2;
-            enemy2X[i] = (7 + (i * 2)) * TILE_SIZE;
+            enemy2X[i] = 7 * TILE_SIZE;
             enemy2Y[i] = 5 * TILE_SIZE;
             enemy2Vx[i] = 0f;
             enemy2Vy[i] = 0f;

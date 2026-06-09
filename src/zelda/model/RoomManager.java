@@ -49,17 +49,12 @@ public class RoomManager {
             r.setTile(Room.COLS - 1, y, Room.TILE_SOLID);
         }
 
-        // porte laterali per arrivare (puoi cambiare se vuoi)
+        // porte laterali per arrivare
         int midY = Room.ROWS / 2;
         r.setTile(0, midY - 1, Room.TILE_FLOOR);
         r.setTile(0, midY, Room.TILE_FLOOR);
 
-       // r.setTile(Room.COLS - 1, midY - 1, Room.TILE_FLOOR);
-        //r.setTile(Room.COLS - 1, midY, Room.TILE_FLOOR);
-
-        // porta top-center: inizialmente CHIUSA => lasciamo SOLID
-        // (verrà aperta dal GameModel quando il boss muore)
-        // midX definito comunque qui per chiarezza:
+        // porta top-center: inizialmente CHIUSA
         int midX = Room.COLS / 2;
         r.setTile(midX, 0, Room.TILE_SOLID);
 
@@ -125,26 +120,28 @@ public class RoomManager {
         // arena room vuota (solo perimetro)
         if (id == SHOP_ROOM_INDEX) return r;
 
+        // Restore original obstacle positions but reduce the number of tiles (less dense)
         switch (pattern) {
             case 0 -> {
                 int oy = 3;
-                for (int x = 3; x < 13; x++) r.setTile(x, oy, Room.TILE_SOLID);
+                for (int x = 3; x < 13; x += 2) r.setTile(x, oy, Room.TILE_SOLID); // keep positions but half the tiles
             }
             case 1 -> {
                 int ox = 6;
-                for (int y = 2; y < 9; y++) r.setTile(ox, y, Room.TILE_SOLID);
+                for (int y = 2; y < 9; y += 2) r.setTile(ox, y, Room.TILE_SOLID); // keep positions but half the tiles
             }
             case 2 -> {
-                for (int x = 3; x < 6; x++)
-                    for (int y = 3; y < 6; y++)
+                // two 2x2 blocks positioned like before but smaller
+                for (int x = 3; x < 5; x++)
+                    for (int y = 3; y < 5; y++)
                         r.setTile(x, y, Room.TILE_SOLID);
 
-                for (int x = 10; x < 13; x++)
-                    for (int y = 6; y < 9; y++)
+                for (int x = 10; x < 12; x++)
+                    for (int y = 6; y < 8; y++)
                         r.setTile(x, y, Room.TILE_SOLID);
             }
             case 3 -> {
-                for (int i = 0; i < 6; i++) {
+                for (int i = 0; i < 6; i += 2) {
                     r.setTile(4 + i, 2 + (i % 2), Room.TILE_SOLID);
                     r.setTile(4 + i, 7 + (i % 2), Room.TILE_SOLID);
                 }

@@ -60,9 +60,13 @@ public class GameController {
     private static final float ATTACK_FRAME_TIME = 0.10f;
     private static final float ATTACK_TOTAL_TIME = 0.22f;
 
-    // ---- ENEMY (Arena - RADDOPPIATO) ----
+    // ---- ENEMY 1 (Sprite 56x58) ----
     private static final int ENEMY_DRAW_W = 56;
     private static final int ENEMY_DRAW_H = 58;
+    private static final int ENEMY_HIT_W = 40;
+    private static final int ENEMY_HIT_H = 40;
+    private static final int ENEMY_HIT_OFF_X = (ENEMY_DRAW_W - ENEMY_HIT_W) / 2; // 8
+    private static final int ENEMY_HIT_OFF_Y = (ENEMY_DRAW_H - ENEMY_HIT_H) / 2; // 9
 
     private static final float ENEMY_SPEED = 55f;
     private static final float ENEMY_SPEED_JITTER = 25f;
@@ -73,16 +77,22 @@ public class GameController {
     private static final float ENEMY_INVULN_SECONDS = 0.25f;
     private static final float ENEMY_BLINK_SECONDS = 0.25f;
     
-    // ---- ENEMY 2 (Patrol + Charge - RADDOPPIATO) ----
-    private static final int ENEMY2_DRAW_W = 64; 
-    private static final int ENEMY2_DRAW_H = 64;
+    // ---- ENEMY 2 (Sprite 48x48) ----
+    private static final int ENEMY2_DRAW_W = 48; 
+    private static final int ENEMY2_DRAW_H = 48;
+    private static final int ENEMY2_HIT_W = 28;   // Ridotto da 40
+    private static final int ENEMY2_HIT_H = 28;   // Ridotto da 40
+    private static final int ENEMY2_HIT_OFF_X = (ENEMY2_DRAW_W - ENEMY2_HIT_W) / 2; // 10
+    private static final int ENEMY2_HIT_OFF_Y = (ENEMY2_DRAW_H - ENEMY2_HIT_H) / 2; // 10
+    
     private static final float ENEMY2_PATROL_SPEED = 40f;
-    private static final float ENEMY2_CHARGE_SPEED = 140f;
+    private static final float ENEMY2_CHARGE_SPEED = 100f;
     private static final float ENEMY2_DIR_MIN = 1.0f;
     private static final float ENEMY2_DIR_MAX = 2.5f;
     private static final float ENEMY2_INVULN_SECONDS = 0.30f;
     private static final float ENEMY2_BLINK_SECONDS = 0.30f;
     private static final float ENEMY2_DETECTION_RADIUS = 150f;
+    private static final float ENEMY2_LIFE_DROP_CHANCE = 0.85f;
 
     // ---- SWORD ----
     private static final int SWORD_W = 18;
@@ -107,8 +117,8 @@ public class GameController {
     // ======================
     // BOSS
     // ======================
-    private static final int BOSS_DRAW_W = 32;
-    private static final int BOSS_DRAW_H = 32;
+    private static final int BOSS_DRAW_W = 16;  // Dimezzato da 32
+    private static final int BOSS_DRAW_H = 16;  // Dimezzato da 32
 
     private static final float BOSS_SPEED = 85f;
     private static final float BOSS_FLOAT_FREQ = 1.25f;
@@ -172,6 +182,7 @@ public class GameController {
         model.updateRupeeAnim(dt);
         model.updatePotionAnim(dt);
         model.updatePlayerTimers(dt);
+        model.updateBossTimers(dt);
         
         updateBossRefactor(dt);
         updateBossShooting(dt);
@@ -187,8 +198,7 @@ public class GameController {
 
         if (model.isAttacking()) {
             updateAttack(dt);
-            updateEnemy(dt);
-            updateEnemy2(dt);
+            updateEnemyForCurrentRoom(dt);
             checkEnemy2TouchDamage();
             checkEnemyTouchDamage();
             checkRupeePickup();
@@ -199,8 +209,7 @@ public class GameController {
 
         if (attackPressed) {
             startAttack();
-            updateEnemy(dt);
-            updateEnemy2(dt);
+            updateEnemyForCurrentRoom(dt);
             checkEnemy2TouchDamage();
             checkEnemyTouchDamage();
             checkRupeePickup();
@@ -226,8 +235,7 @@ public class GameController {
 
         checkRoomExit();
 
-        updateEnemy(dt);
-        updateEnemy2(dt);
+        updateEnemyForCurrentRoom(dt);
         checkEnemy2TouchDamage();
         checkEnemyTouchDamage();
         checkRupeePickup();
@@ -240,6 +248,38 @@ public class GameController {
         interactPressed = false;
         escPressed = false;
         attackPressed = false;
+    }
+
+    /**
+     * Aggiorna nemici in base alla stanza corrente:
+     * - Stanze dispari (non shop, non boss): Enemy2 (Patrol + Charge)
+     * - Stanze pari (non primo spawn, non boss): Enemy1 (Random movement)
+     * - Shop: nessun nemico
+     * - Boss room: nessun nemico (solo il boss)
+     */
+    private void updateEnemyForCurrentRoom(float dt) {
+        int roomIdx = model.getCurrentRoomIndex();
+        
+        // Boss room: nessun nemico2
+        if (roomIdx == BOSS_ROOM_INDEX) {
+            return;
+        }
+        
+        // Shop: nessun nemico
+        if (roomIdx == SHOP_INDEX) {
+            return;
+        }
+        
+        // Stanze dispari: Enemy2
+        if (roomIdx % 2 != 0) {
+            updateEnemy2(dt);
+            return;
+        }
+        
+        // Stanze pari (non prima stanza): Enemy1
+        if (roomIdx > 0 && roomIdx != BOSS_ROOM_INDEX) {
+            updateEnemy(dt);
+        }
     }
 
     private void updateBossRefactor(float dt) {
@@ -354,10 +394,12 @@ public class GameController {
         return model.getRoom().isSolidTile(tx, ty);
     }
 
-    // -------------------- ENEMY 1 --------------------
+    // -------------------- ENEMY 1 (Stanze pari) --------------------
     private void updateEnemy(float dt) {
         if (!model.isEnemyAlive()) return;
-        if (model.getCurrentRoomIndex() != ARENA_INDEX) return;
+        int roomIdx = model.getCurrentRoomIndex();
+        // Esegui solo in stanze pari (non shop, non boss)
+        if (roomIdx == 0 || roomIdx == SHOP_INDEX || roomIdx == BOSS_ROOM_INDEX || roomIdx % 2 != 0) return;
 
         if (Math.abs(model.getEnemyVx()) < 0.001f && Math.abs(model.getEnemyVy()) < 0.001f) {
             pickNewEnemyDirection();
@@ -376,11 +418,19 @@ public class GameController {
         int roomW = Room.COLS * GameModel.TILE_SIZE;
         int roomH = Room.ROWS * GameModel.TILE_SIZE;
 
-        // Limiti basati sui muri interni piastrellati per evitare incastri visivi
         float minX = GameModel.TILE_SIZE;
         float minY = GameModel.TILE_SIZE;
         float maxX = roomW - GameModel.TILE_SIZE - ENEMY_DRAW_W;
         float maxY = roomH - GameModel.TILE_SIZE - ENEMY_DRAW_H;
+
+        // Verifica collisione con i tile solidi
+        if (enemyCollidesWithTiles(ex + ENEMY_HIT_OFF_X, ey + ENEMY_HIT_OFF_Y, ENEMY_HIT_W, ENEMY_HIT_H)) {
+            // Se collide, cambia direzione
+            pickNewEnemyDirection();
+            model.setEnemyDirTimer(randRange(ENEMY_DIR_MIN, ENEMY_DIR_MAX));
+            ex = model.getEnemyX();
+            ey = model.getEnemyY();
+        }
 
         boolean bounced = false;
         if (ex < minX) { ex = minX; bounced = true; }
@@ -395,9 +445,10 @@ public class GameController {
         }
     }
     
-    // -------------------- ENEMY 2 (PATROL + CHARGE) --------------------
+    // -------------------- ENEMY 2 (PATROL + CHARGE - Stanze dispari) --------------------
     private void updateEnemy2(float dt) {
-        if (model.getCurrentRoomIndex() != ARENA_INDEX) return;
+        int roomIdx = model.getCurrentRoomIndex();
+        if (roomIdx == SHOP_INDEX || roomIdx % 2 == 0 || roomIdx == BOSS_ROOM_INDEX) return;
 
         for (int i = 0; i < model.getEnemy2MaxUnits(); i++) {
             if (!model.isEnemy2Alive(i)) continue;
@@ -446,6 +497,15 @@ public class GameController {
             float maxX = roomW - GameModel.TILE_SIZE - ENEMY2_DRAW_W;
             float maxY = roomH - GameModel.TILE_SIZE - ENEMY2_DRAW_H;
 
+            // Verifica collisione con i tile solidi
+            if (enemyCollidesWithTiles(nextX + ENEMY2_HIT_OFF_X, nextY + ENEMY2_HIT_OFF_Y, ENEMY2_HIT_W, ENEMY2_HIT_H)) {
+                // Se collide, cambia direzione
+                pickNewEnemy2Direction(i);
+                model.setEnemy2DirTimer(i, randRange(ENEMY2_DIR_MIN, ENEMY2_DIR_MAX));
+                nextX = e2x;
+                nextY = e2y;
+            }
+
             boolean bounced = false;
             if (nextX < minX) { nextX = minX; bounced = true; }
             if (nextY < minY) { nextY = minY; bounced = true; }
@@ -463,6 +523,17 @@ public class GameController {
                 model.setEnemy2AnimFrame(i, currentFrame);
             }
         }
+    }
+
+    /**
+     * Verifica se un nemico collide con i tile solidi della stanza
+     */
+    private boolean enemyCollidesWithTiles(float hbX, float hbY, int hbW, int hbH) {
+        // Controlla i 4 angoli della hitbox
+        return collidesAt(hbX, hbY) ||
+               collidesAt(hbX + hbW - 1, hbY) ||
+               collidesAt(hbX, hbY + hbH - 1) ||
+               collidesAt(hbX + hbW - 1, hbY + hbH - 1);
     }
 
     private void pickNewEnemy2Direction(int i) {
@@ -568,7 +639,8 @@ public class GameController {
 
     private void tryHitEnemyWithSword() {
         if (!model.isEnemyAlive()) return;
-        if (model.getCurrentRoomIndex() != ARENA_INDEX) return;
+        int roomIdx = model.getCurrentRoomIndex();
+        if (roomIdx == 0 || roomIdx == SHOP_INDEX || roomIdx == BOSS_ROOM_INDEX || roomIdx % 2 != 0) return;
 
         if (!model.isAttacking() || model.getAttackFrame() != 1) return;
         if (attackDidHitThisSwing) return;
@@ -576,10 +648,10 @@ public class GameController {
         
         Rectangle sword = computeSwordHitbox();
         Rectangle enemy = new Rectangle(
-                Math.round(model.getEnemyX()),
-                Math.round(model.getEnemyY()),
-                ENEMY_DRAW_W,
-                ENEMY_DRAW_H
+                Math.round(model.getEnemyX() + ENEMY_HIT_OFF_X),
+                Math.round(model.getEnemyY() + ENEMY_HIT_OFF_Y),
+                ENEMY_HIT_W,
+                ENEMY_HIT_H
         );
         if (sword.intersects(enemy)) {
             attackDidHitThisSwing = true;
@@ -604,7 +676,9 @@ public class GameController {
     }
     
     private void tryHitEnemy2WithSword() {
-        if (model.getCurrentRoomIndex() != ARENA_INDEX) return;
+        int roomIdx = model.getCurrentRoomIndex();
+        if (roomIdx == SHOP_INDEX || roomIdx % 2 == 0 || roomIdx == BOSS_ROOM_INDEX) return;
+
         if (!model.isAttacking() || model.getAttackFrame() != 1) return;
         if (attackDidHitThisSwing) return;
 
@@ -615,10 +689,10 @@ public class GameController {
             if (model.isEnemy2Blinking(i)) continue; 
 
             Rectangle enemy2 = new Rectangle(
-                    Math.round(model.getEnemy2X(i)),
-                    Math.round(model.getEnemy2Y(i)),
-                    ENEMY2_DRAW_W,
-                    ENEMY2_DRAW_H
+                    Math.round(model.getEnemy2X(i) + ENEMY2_HIT_OFF_X),
+                    Math.round(model.getEnemy2Y(i) + ENEMY2_HIT_OFF_Y),
+                    ENEMY2_HIT_W,
+                    ENEMY2_HIT_H
             );
             if (sword.intersects(enemy2)) {
                 attackDidHitThisSwing = true;
@@ -630,6 +704,13 @@ public class GameController {
                     float centerX = model.getEnemy2X(i) + ENEMY2_DRAW_W / 2f;
                     float centerY = model.getEnemy2Y(i) + ENEMY2_DRAW_H / 2f;
                     model.spawnRupee(centerX - 6, centerY - 10);
+                    
+                    // Drop vita con 85% di possibilità
+                    if (Math.random() < ENEMY2_LIFE_DROP_CHANCE) {
+                        float potionX = centerX - (POTION_DRAW_W / 2f);
+                        float potionY = centerY - (POTION_DRAW_H / 2f);
+                        model.spawnPotion(potionX, potionY);
+                    }
                 }
                 break; 
             }
@@ -637,7 +718,8 @@ public class GameController {
     }
 
     private void checkEnemy2TouchDamage() {
-        if (model.getCurrentRoomIndex() != ARENA_INDEX) return;
+        int roomIdx = model.getCurrentRoomIndex();
+        if (roomIdx == SHOP_INDEX || roomIdx % 2 == 0 || roomIdx == BOSS_ROOM_INDEX) return;
         if (model.isPlayerInvulnerable()) return;
 
         Rectangle playerFeet = new Rectangle(
@@ -651,10 +733,10 @@ public class GameController {
             if (!model.isEnemy2Alive(i)) continue;
 
             Rectangle enemy2 = new Rectangle(
-                    Math.round(model.getEnemy2X(i)),
-                    Math.round(model.getEnemy2Y(i)),
-                    ENEMY2_DRAW_W,
-                    ENEMY2_DRAW_H
+                    Math.round(model.getEnemy2X(i) + ENEMY2_HIT_OFF_X),
+                    Math.round(model.getEnemy2Y(i) + ENEMY2_HIT_OFF_Y),
+                    ENEMY2_HIT_W,
+                    ENEMY2_HIT_H
             );
             if (playerFeet.intersects(enemy2)) {
                 model.hitPlayer(1, PLAYER_INVULN_SECONDS, PLAYER_BLINK_SECONDS);
@@ -704,14 +786,15 @@ public class GameController {
 
     private void checkEnemyTouchDamage() {
         if (!model.isEnemyAlive()) return;
-        if (model.getCurrentRoomIndex() != ARENA_INDEX) return;
+        int roomIdx = model.getCurrentRoomIndex();
+        if (roomIdx == 0 || roomIdx == SHOP_INDEX || roomIdx == BOSS_ROOM_INDEX || roomIdx % 2 != 0) return;
         if (model.isPlayerInvulnerable()) return;
 
         Rectangle enemy = new Rectangle(
-                Math.round(model.getEnemyX()),
-                Math.round(model.getEnemyY()),
-                ENEMY_DRAW_W,
-                ENEMY_DRAW_H
+                Math.round(model.getEnemyX() + ENEMY_HIT_OFF_X),
+                Math.round(model.getEnemyY() + ENEMY_HIT_OFF_Y),
+                ENEMY_HIT_W,
+                ENEMY_HIT_H
         );
         Rectangle playerFeet = new Rectangle(
                 Math.round(model.getPlayerX() + HIT_OFF_X),
@@ -726,7 +809,8 @@ public class GameController {
 
     private void checkRupeePickup() {
         if (!model.isRupeeAlive()) return;
-        if (model.getCurrentRoomIndex() != ARENA_INDEX) return;
+        int roomIdx = model.getCurrentRoomIndex();
+        if (roomIdx == SHOP_INDEX || (roomIdx == 0)) return;
         if (model.isRupeeAnimating()) return;
 
         Rectangle rupeeRect = new Rectangle(
@@ -749,7 +833,8 @@ public class GameController {
 
     private void checkPotionPickup() {
         if (!model.isPotionAlive()) return;
-        if (model.getCurrentRoomIndex() != ARENA_INDEX) return;
+        int roomIdx = model.getCurrentRoomIndex();
+        if (roomIdx == SHOP_INDEX || (roomIdx == 0)) return;
         if (model.isPotionAnimating()) return;
 
         Rectangle potionRect = new Rectangle(
