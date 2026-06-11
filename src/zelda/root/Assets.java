@@ -26,6 +26,7 @@ public class Assets {
     public static BufferedImage[][] playerArrow = new BufferedImage[PLAYER_DIRECTIONS][PLAYER_ARCHERY_FRAMES];
 
     public static BufferedImage merchant;
+    public static BufferedImage playerVictory;
 
     // ---- ENEMY 1 (original) ----
     public static BufferedImage enemy;
@@ -67,6 +68,7 @@ public class Assets {
 
     // ---- TITLE ----
     public static BufferedImage tsBg;
+    public static BufferedImage tsTitle2;
     public static BufferedImage floor;
 
     public static void load() {
@@ -128,6 +130,9 @@ public class Assets {
 
         // ---- MERCHANT ----
         merchant = loadImage("sprites/merchant.png");
+
+        // ---- PLAYER VICTORY ----
+        playerVictory = loadImage("sprites/player_victory.png");
 
         // ---- ENEMY 1 ----
         enemy = loadImage("sprites/enemy_1.png");
@@ -193,6 +198,7 @@ public class Assets {
 
         // ---- TITLE ----
         tsBg = loadImage("sprites/ts_bg.png");
+        tsTitle2 = loadImage("sprites/ts_title2.png");
     }
 
     private static BufferedImage mirrorHorizontally(BufferedImage src) {

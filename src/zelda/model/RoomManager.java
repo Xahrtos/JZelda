@@ -128,31 +128,51 @@ public class RoomManager {
         // arena room vuota (solo perimetro)
         if (id == SHOP_ROOM_INDEX) return r;
 
-        // Restore original obstacle positions but reduce the number of tiles (less dense)
+        // Gruppi di 4 tile (2x2) con variazioni per stanza
         switch (pattern) {
             case 0 -> {
-                int oy = 3;
-                for (int x = 3; x < 13; x += 2) r.setTile(x, oy, Room.TILE_SOLID); // keep positions but half the tiles
+                // Pattern 0: due blocchi 2x2 in alto
+                for (int x = 3; x < 5; x++)
+                    for (int y = 2; y < 4; y++)
+                        r.setTile(x, y, Room.TILE_SOLID);
+                
+                for (int x = 11; x < 13; x++)
+                    for (int y = 2; y < 4; y++)
+                        r.setTile(x, y, Room.TILE_SOLID);
             }
             case 1 -> {
-                int ox = 6;
-                for (int y = 2; y < 9; y += 2) r.setTile(ox, y, Room.TILE_SOLID); // keep positions but half the tiles
-            }
-            case 2 -> {
-                // two 2x2 blocks positioned like before but smaller
-                for (int x = 3; x < 5; x++)
+                // Pattern 1: due blocchi 2x2 al centro (verticalmente spostati)
+                for (int x = 5; x < 7; x++)
                     for (int y = 3; y < 5; y++)
                         r.setTile(x, y, Room.TILE_SOLID);
-
-                for (int x = 10; x < 12; x++)
+                
+                for (int x = 9; x < 11; x++)
                     for (int y = 6; y < 8; y++)
                         r.setTile(x, y, Room.TILE_SOLID);
             }
+            case 2 -> {
+                // Pattern 2: tre blocchi 2x2 (uno al centro, due ai lati)
+                for (int x = 7; x < 9; x++)
+                    for (int y = 4; y < 6; y++)
+                        r.setTile(x, y, Room.TILE_SOLID);
+                
+                for (int x = 2; x < 4; x++)
+                    for (int y = 6; y < 8; y++)
+                        r.setTile(x, y, Room.TILE_SOLID);
+                
+                for (int x = 12; x < 14; x++)
+                    for (int y = 5; y < 7; y++)
+                        r.setTile(x, y, Room.TILE_SOLID);
+            }
             case 3 -> {
-                for (int i = 0; i < 6; i += 2) {
-                    r.setTile(4 + i, 2 + (i % 2), Room.TILE_SOLID);
-                    r.setTile(4 + i, 7 + (i % 2), Room.TILE_SOLID);
-                }
+                // Pattern 3: due blocchi 2x2 diagonali
+                for (int x = 4; x < 6; x++)
+                    for (int y = 3; y < 5; y++)
+                        r.setTile(x, y, Room.TILE_SOLID);
+                
+                for (int x = 10; x < 12; x++)
+                    for (int y = 6; y < 8; y++)
+                        r.setTile(x, y, Room.TILE_SOLID);
             }
         }
 

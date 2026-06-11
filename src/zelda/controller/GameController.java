@@ -195,6 +195,8 @@ public class GameController {
     private static final int BOSS_DRAW_W = 16;
     @SuppressWarnings("unused")
     private static final int BOSS_DRAW_H = 16;
+    private static final int BOSS_HIT_W = 32;
+    private static final int BOSS_HIT_H = 32;
 
     @SuppressWarnings("unused")
     private static final float BOSS_SPEED = 85f;
@@ -237,6 +239,17 @@ public class GameController {
         
         if (model.isTitle()) {
             if (startPressed) model.startGame();
+            clearOneShots();
+            return;
+        }
+
+        // ---- VICTORY STATE ----
+        if (model.isVictoryActive()) {
+            model.updateVictoryTimer(dt);
+            if (model.getVictoryT() >= 3.0f) {
+                saveLeaderboardEntry();
+                model.resetRun();
+            }
             clearOneShots();
             return;
         }
@@ -285,6 +298,7 @@ public class GameController {
         model.setShowInteractPrompt(nearNpc);
         if (interactPressed && nearNpc) {
             model.openShop();
+            interactPressed = false;
             clearOneShots();
             return;
         }
@@ -871,16 +885,20 @@ public class GameController {
 
         Rectangle sword = computeSwordHitbox();
         Rectangle boss = new Rectangle(
-                Math.round(model.getBossX()),
-                Math.round(model.getBossY()),
-                BOSS_DRAW_W,
-                BOSS_DRAW_H
+                Math.round(model.getBossX() - BOSS_HIT_W / 2f),
+                Math.round(model.getBossY() - BOSS_HIT_H / 2f),
+                BOSS_HIT_W,
+                BOSS_HIT_H
         );
         if (sword.intersects(boss)) {
             attackDidHitThisSwing = true;
             model.hitBoss(1);
             SoundManager.playSound("enemy_hit");
-            if (!model.isBossAlive()) model.addScore(1500);
+            if (!model.isBossAlive()) {
+                model.addScore(1500);
+                SoundManager.stopMusic();
+                SoundManager.playSound("player_victory");
+            }
         }
     }
 
@@ -890,17 +908,21 @@ public class GameController {
 
         Rectangle arrowRect = new Rectangle(Math.round(x), Math.round(y), ARROW_W, ARROW_H);
         Rectangle boss = new Rectangle(
-                Math.round(model.getBossX()),
-                Math.round(model.getBossY()),
-                BOSS_DRAW_W,
-                BOSS_DRAW_H
+                Math.round(model.getBossX() - BOSS_HIT_W / 2f),
+                Math.round(model.getBossY() - BOSS_HIT_H / 2f),
+                BOSS_HIT_W,
+                BOSS_HIT_H
         );
 
         if (arrowRect.intersects(boss)) {
             model.despawnArrow(arrowIdx);
             model.hitBoss(ARROW_DAMAGE);
             SoundManager.playSound("enemy_hit");
-            if (!model.isBossAlive()) model.addScore(1500);
+            if (!model.isBossAlive()) {
+                model.addScore(1500);
+                SoundManager.stopMusic();
+                SoundManager.playSound("player_victory");
+            }
         }
     }
 
@@ -999,6 +1021,7 @@ public class GameController {
     private void updateShopInput() {
         if (escPressed) {
             model.closeShop();
+            escPressed = false;
             return;
         }
 
@@ -1019,6 +1042,7 @@ public class GameController {
         if (interactPressed) {
             SoundManager.playSound("cursors");
             handleShopConfirm();
+            interactPressed = false;  // FIX: RESET INTERACTPRESSED QUI!
         }
     }
 
@@ -1351,6 +1375,21 @@ public class GameController {
                 break;
             }
         }
+    }
+
+    private void saveLeaderboardEntry() {
+        String pid = model.getProfileId();
+        if (pid == null || pid.isBlank()) return;
+
+        profileStore.recordMatchResult(pid, true);
+        profileStore.appendLeaderboardEntry(new LeaderboardEntry(
+                Instant.now(),
+                pid,
+                model.getScore(),
+                true,
+                Math.min(model.getCurrentRoomIndex() + 1, PLAY_LAST_INDEX + 1),
+                model.getRupees()
+        ));
     }
 
     private void simulateEndGame(boolean won) {

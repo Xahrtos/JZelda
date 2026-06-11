@@ -67,8 +67,8 @@ public class GameModel {
     private boolean isEnemyInvulnerable = false;
     private boolean isEnemyBlinking = false;
 
-    // ---- ENEMY 2 (Multiple units) ----
-    private static final int ENEMY2_MAX_UNITS = 2;
+    // ---- ENEMY 2 ----
+    private static final int ENEMY2_MAX_UNITS = 1;
     private float[] enemy2X = new float[ENEMY2_MAX_UNITS];
     private float[] enemy2Y = new float[ENEMY2_MAX_UNITS];
     private float[] enemy2Vx = new float[ENEMY2_MAX_UNITS];
@@ -95,6 +95,30 @@ public class GameModel {
     private Facing bossFacing = Facing.DOWN;
     private static final int MAX_BOSS_BULLETS = 10;
     private List<BossBullet> bossBullets = new ArrayList<>();
+ // Aggiungi queste variabili dopo la sezione BOSS (intorno a linea 98)
+
+    // ---- VICTORY STATE ----
+    private boolean isVictoryActive = false;
+    private float victoryT = 0f;
+    private static final float VICTORY_DURATION = 3.0f;
+
+
+
+
+
+// Nel metodo resetRun() (linea 197), aggiungi prima di resetAllEnemies():
+
+    public void resetRun() {
+        isTitle = true;
+        isPlaying = false;
+        isTransitioning = false;
+        isShopOpen = false;
+        isVictoryActive = false;
+        victoryT = 0f;
+        currentRoomIndex = 0;
+        currentRoom = roomManager.getRoom(currentRoomIndex);
+        resetAllEnemies();
+    }
 
     // ---- RUPEE / POTION ----
     private float rupeeX = 0f;
@@ -194,16 +218,7 @@ public class GameModel {
         resetAllEnemies();
     }
 
-    public void resetRun() {
-        isTitle = true;
-        isPlaying = false;
-        isTransitioning = false;
-        isShopOpen = false;
-        currentRoomIndex = 0;
-        currentRoom = roomManager.getRoom(currentRoomIndex);
-        resetAllEnemies();
-    }
-
+    
     private void resetAllEnemies() {
         isEnemyAlive = true;
         enemyHp = 1;
@@ -354,6 +369,8 @@ public class GameModel {
         isPlayerBlinking = true;
         fireGameEvent(GameEventType.HUD_CHANGED);
         if (playerHp <= 0) {
+        	SoundManager.stopMusic();
+            SoundManager.playSound("player_death");
             fireGameEvent(GameEventType.GAME_OVER);
         }
     }
@@ -579,6 +596,18 @@ public class GameModel {
     public void setBossFacing(Facing f) { bossFacing = f; }
     public void addBossFloatT(float dt) { bossFloatT += dt; }
     public void setBossShootT(float t) { bossShootT = t; }
+    
+    public boolean isVictoryActive() { return isVictoryActive; }
+    public float getVictoryT() { return victoryT; }
+
+    public void updateVictoryTimer(float dt) {
+        if (isVictoryActive) {
+            victoryT += dt;
+            if (victoryT >= VICTORY_DURATION) {
+                victoryT = VICTORY_DURATION;
+            }
+        }
+    }
 
     public void hitBoss(int damage) {
         bossHp -= damage;
@@ -586,6 +615,8 @@ public class GameModel {
         bossBlinkT = 0.25f;
         if (bossHp <= 0) {
             isBossAlive = false;
+            isVictoryActive = true;
+            victoryT = 0f;
         }
     }
 

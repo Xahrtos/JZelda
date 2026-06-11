@@ -9,6 +9,7 @@ import zelda.model.Room;
 import zelda.model.RoomManager;
 import zelda.model.SlideDir;
 import zelda.root.Assets;
+import zelda.root.SoundManager;
 
 public class GameView extends JPanel implements zelda.model.GameEventListener {
 
@@ -62,6 +63,14 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
     @SuppressWarnings("unused")
     private float deathToX, deathToY;
 
+    // ---- TITLE SCREEN SPRITES ----
+    private static final int TITLE_SPRITE_W = 150;
+    private static final int TITLE_SPRITE_H = 64;
+
+    // ---- VICTORY SCREEN ----
+    private static final int VICTORY_SPRITE_W = 68;   // 17 * 4
+    private static final int VICTORY_SPRITE_H = 140;  // 35 * 4
+
     public GameView(GameModel model) {
         this.model = model;
         setBackground(Color.BLACK);
@@ -88,6 +97,12 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
     }
 
     public void tick(float dt) {
+        // ---- VICTORY STATE ----
+        if (model.isPlaying() && model.isVictoryActive()) {
+            repaint();
+            return;
+        }
+
         if (model.isPlaying() && model.getLives() <= 0) {
             if (!gameOverUiActive) {
                 gameOverUiActive = true;
@@ -137,6 +152,12 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
 
             if (model.isTitle()) {
                 renderTitleScreen(g);
+                return;
+            }
+
+            // ---- VICTORY STATE ----
+            if (model.isVictoryActive()) {
+                renderVictoryScreen(g);
                 return;
             }
 
@@ -248,6 +269,11 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
             // ---- SHOP OVERLAY ----
             if (model.isShopOpen()) {
                 renderShopOverlay(g, baseX, baseY, roomPixelW, roomPixelH);
+            }
+
+            // ---- INTERACT PROMPT ----
+            if (model.shouldShowInteractPrompt()) {
+                drawInteractPrompt(g, baseX, baseY, roomPixelW);
             }
 
             g.setColor(new Color(255, 255, 255, 40));
@@ -368,27 +394,101 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
             g.drawImage(img, dx, dy, dw, dh, null);
         }
 
-        String hint = "PREMI ENTER PER INIZIARE";
+        // Disegna lo sprite ts_title2
+        if (Assets.tsTitle2 != null) {
+            int titleX = (screenW - TITLE_SPRITE_W) / 2;
+            int titleY = screenH / 2 - 100;
+            
+            g.drawImage(Assets.tsTitle2, titleX, titleY, TITLE_SPRITE_W, TITLE_SPRITE_H, null);
+        }
 
-        Font old = g.getFont();
+        String startHint = "PREMI ENTER PER INIZIARE";
+        
+        // Lista dei comandi
+        String[] commands = {
+            "WASD: Movimento",
+            "SPAZIO: Attacca con spada",
+            "Q: Archery",
+            "E: Interagisci",
+            "ESC: Pausa"
+        };
+
+        Font oldFont = g.getFont();
         Composite oldC = g.getComposite();
         try {
+            // Disegna "PREMI ENTER PER INIZIARE"
             g.setFont(new Font("Monospaced", Font.BOLD, 22));
             FontMetrics fm = g.getFontMetrics();
 
-            int x = (screenW - fm.stringWidth(hint)) / 2;
-            int y = screenH - 40;
+            int hintX = (screenW - fm.stringWidth(startHint)) / 2;
+            int hintY = screenH - 120;
 
             g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.90f));
 
             g.setColor(new Color(0, 0, 0, 200));
-            g.drawString(hint, x + 2, y + 2);
+            g.drawString(startHint, hintX + 2, hintY + 2);
 
             g.setColor(Color.WHITE);
-            g.drawString(hint, x, y);
+            g.drawString(startHint, hintX, hintY);
+
+            // Disegna i comandi sotto lo sprite
+            g.setFont(new Font("Monospaced", Font.PLAIN, 16));
+            FontMetrics fmCmds = g.getFontMetrics();
+            
+            int cmdStartY = screenH / 2 - 20;
+            int maxCmdWidth = 0;
+            for (String cmd : commands) {
+                maxCmdWidth = Math.max(maxCmdWidth, fmCmds.stringWidth(cmd));
+            }
+            
+            int cmdStartX = (screenW - maxCmdWidth) / 2;
+            
+            g.setColor(new Color(200, 200, 200));
+            for (int i = 0; i < commands.length; i++) {
+                int cmdY = cmdStartY + (i * 24);
+                g.drawString(commands[i], cmdStartX, cmdY);
+            }
+
         } finally {
             g.setComposite(oldC);
-            g.setFont(old);
+            g.setFont(oldFont);
+        }
+    }
+
+    private void renderVictoryScreen(Graphics2D g) {
+        int screenW = getWidth();
+        int screenH = getHeight();
+
+        g.setColor(Color.BLACK);
+        g.fillRect(0, 0, screenW, screenH);
+
+        if (Assets.playerVictory != null) {
+            int x = (screenW - VICTORY_SPRITE_W) / 2;
+            int y = (screenH - VICTORY_SPRITE_H) / 2 - 50;
+            
+            g.drawImage(Assets.playerVictory, x, y, VICTORY_SPRITE_W, VICTORY_SPRITE_H, null);
+        }
+
+        // Disegna testo "VITTORIA"
+        Font oldFont = g.getFont();
+        Composite oldC = g.getComposite();
+        try {
+            g.setFont(new Font("Monospaced", Font.BOLD, 64));
+            FontMetrics fm = g.getFontMetrics();
+            
+            String victoryText = "VITTORIA";
+            int x = (screenW - fm.stringWidth(victoryText)) / 2;
+            int y = screenH / 2 + 100;
+            
+            g.setColor(new Color(0, 0, 0, 200));
+            g.drawString(victoryText, x + 3, y + 3);
+            
+            g.setColor(new Color(255, 215, 0));
+            g.drawString(victoryText, x, y);
+            
+        } finally {
+            g.setComposite(oldC);
+            g.setFont(oldFont);
         }
     }
 
@@ -807,6 +907,39 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
 
         g.setColor(new Color(200, 200, 200));
         g.drawString("W/S: scegli   E: compra   ESC: esci", x + 14, y + h - 14);
+    }
+
+    /**
+     * Disegna il prompt "Premere E per interagire" quando in range dello NPC
+     */
+    private void drawInteractPrompt(Graphics2D g, int baseX, int baseY, int roomPixelW) {
+        String promptText = "Premere E per interagire";
+        
+        Font oldFont = g.getFont();
+        g.setFont(new Font("Monospaced", Font.BOLD, 18));
+        FontMetrics fm = g.getFontMetrics();
+        
+        int boxW = fm.stringWidth(promptText) + 20;
+        int boxH = 40;
+        int boxX = baseX + (roomPixelW - boxW) / 2;
+        int boxY = baseY + 30;
+        
+        // Sfondo del box
+        g.setColor(new Color(0, 0, 0, 180));
+        g.fillRoundRect(boxX, boxY, boxW, boxH, 10, 10);
+        
+        // Bordo del box
+        g.setColor(new Color(255, 215, 0));
+        g.setStroke(new BasicStroke(2));
+        g.drawRoundRect(boxX, boxY, boxW, boxH, 10, 10);
+        
+        // Testo
+        g.setColor(Color.WHITE);
+        int textX = boxX + (boxW - fm.stringWidth(promptText)) / 2;
+        int textY = boxY + fm.getAscent() + (boxH - fm.getHeight()) / 2;
+        g.drawString(promptText, textX, textY);
+        
+        g.setFont(oldFont);
     }
 
     private void drawMerchant(Graphics2D g, Room room, int roomX, int roomY) {
