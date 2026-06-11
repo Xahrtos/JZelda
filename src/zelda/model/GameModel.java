@@ -630,8 +630,8 @@ public class GameModel {
     // =======================================
     // SHOP
     // =======================================
-    public void openShop() { shopOpen = true; fireGameEvent(GameEventType.HUD_CHANGED); }
-    public void closeShop() { shopOpen = false; fireGameEvent(GameEventType.HUD_CHANGED); }
+    public void openShop() { isShopOpen = true; fireGameEvent(GameEventType.HUD_CHANGED); }
+    public void closeShop() { isShopOpen = false; fireGameEvent(GameEventType.HUD_CHANGED); }
     public int getShopSelectionIndex() { return shopSelectionIndex; }
     public void setShopSelectionIndex(int idx) {
         shopSelectionIndex = Math.max(0, Math.min(3, idx));

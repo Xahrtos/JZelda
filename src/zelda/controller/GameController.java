@@ -15,6 +15,7 @@ import java.time.Instant;
 public class GameController {
 
     private final GameModel model;
+    
 
     private boolean up, down, left, right;
 
@@ -57,11 +58,11 @@ public class GameController {
     private static final int SHOP_EXIT_INDEX = 3;
 
     @SuppressWarnings("unused")
-    private static final int COST_POTION = 5;
+    private static final int COST_POTION = 1;
     @SuppressWarnings("unused")
     private static final int COST_ARROWS = 1;
     @SuppressWarnings("unused")
-    private static final int COST_ITEM3 = 25;
+    private static final int COST_ITEM3 = 5;
     @SuppressWarnings("unused")
     private static final float SHOP_ERR_MSG_SECONDS = 1.2f;
 
@@ -195,8 +196,8 @@ public class GameController {
     private static final int BOSS_DRAW_W = 16;
     @SuppressWarnings("unused")
     private static final int BOSS_DRAW_H = 16;
-    private static final int BOSS_HIT_W = 32;
-    private static final int BOSS_HIT_H = 32;
+    private static final int BOSS_HIT_W = 90;
+    private static final int BOSS_HIT_H = 90;
 
     @SuppressWarnings("unused")
     private static final float BOSS_SPEED = 85f;
@@ -206,9 +207,9 @@ public class GameController {
     private static final float BOSS_FLOAT_AMP = 4.0f;
 
     @SuppressWarnings("unused")
-    private static final float BOSS_SHOOT_INTERVAL = 0.7f;
+    private static final float BOSS_SHOOT_INTERVAL = 1.2f;
     @SuppressWarnings("unused")
-    private static final float BOSS_BULLET_SPEED = 220f;
+    private static final float BOSS_BULLET_SPEED = 200f;
 
     @SuppressWarnings("unused")
     private static final int BOSS_BULLET_W = 18;
@@ -238,6 +239,7 @@ public class GameController {
         updateMusicTrack();
         
         if (model.isTitle()) {
+        	
             if (startPressed) model.startGame();
             clearOneShots();
             return;
@@ -296,6 +298,11 @@ public class GameController {
 
         boolean nearNpc = canInteractWithNpc();
         model.setShowInteractPrompt(nearNpc);
+        if (interactPressed) {
+            System.out.println("[DEBUG] Tasto E premuto correttamente!");
+            System.out.println("[DEBUG] Stato vicino a NPC: " + nearNpc);
+            System.out.println("[DEBUG] Stanza corrente: " + model.getCurrentRoomIndex());
+        }
         if (interactPressed && nearNpc) {
             model.openShop();
             interactPressed = false;
@@ -1075,7 +1082,7 @@ public class GameController {
 
         Rectangle npc = room.getNpcBounds();
 
-        int padding = 96;
+        int padding = 400;
         Rectangle interactionArea = new Rectangle(
                 npc.x - padding,
                 npc.y - padding,

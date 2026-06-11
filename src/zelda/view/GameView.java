@@ -870,9 +870,9 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         g.drawString("Negozio", x + 14, y + 24);
 
         String[] items = {
-                "Pozione (+1 vita)        - 5 rupie",
-                "Freccie x10              - 1 rupia",
-                "Item 3 (+250 score)      - 25 rupie",
+                "Pozione (+1 vita)        - 1 rupie",
+                "Frecce x10              - 1 rupia",
+                "Score Boost (Cheater...) (+250 score)      - 5 rupie",
                 "Esci"
         };
 
@@ -928,10 +928,7 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         g.setColor(new Color(0, 0, 0, 180));
         g.fillRoundRect(boxX, boxY, boxW, boxH, 10, 10);
         
-        // Bordo del box
-        g.setColor(new Color(255, 215, 0));
-        g.setStroke(new BasicStroke(2));
-        g.drawRoundRect(boxX, boxY, boxW, boxH, 10, 10);
+        
         
         // Testo
         g.setColor(Color.WHITE);
