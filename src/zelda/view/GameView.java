@@ -12,6 +12,8 @@ import zelda.root.Assets;
 
 public class GameView extends JPanel implements zelda.model.GameEventListener {
 
+    private static final long serialVersionUID = 1L;
+    
     private final GameModel model;
 
     private boolean sliding = false;
@@ -21,13 +23,17 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
     private static final int PLAYER_ZOOM = 2;
 
     // ---- ENEMY RENDER ----
-    private static final float ENEMY_SCALE = 0.5f;  // 56x58 -> 28x29
-    private static final float POTION_SCALE = 0.5f; // 64x72 -> 32x36
+    private static final float ENEMY_SCALE = 0.5f;
+    private static final float POTION_SCALE = 0.5f;
     private static final int BOSS_ROOM_INDEX = 7;
 
-    // ---- ENEMY2 RENDER (Dimensioni originali senza scale) ----
+    // ---- ENEMY2 RENDER ----
     private static final int ENEMY2_DRAW_W = 48;
     private static final int ENEMY2_DRAW_H = 48;
+
+    // ---- ARROW RENDER ----
+    private static final int ARROW_DRAW_W = 16;
+    private static final int ARROW_DRAW_H = 16;
 
     // ---- BOSS FLOAT ----
     private static final float BOSS_FLOAT_FREQ = 1.25f;
@@ -41,7 +47,9 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
     private boolean gameOverUiActive = false;
     private float gameOverUiT = 0f;
 
+    @SuppressWarnings("unused")
     private static final float GAME_OVER_DELAY = 2.0f;
+    @SuppressWarnings("unused")
     private static final float GAME_OVER_FADE_IN = 0.9f;
 
     // ---- GAME OVER DEATH SPRITE ANIM ----
@@ -49,8 +57,9 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
     private float deathAnimT = 0f;
     private static final float DEATH_MOVE_DUR = 0.9f;
 
-    // pos iniziale (pixel schermo) e finale (pixel schermo)
+    @SuppressWarnings("unused")
     private float deathFromX, deathFromY;
+    @SuppressWarnings("unused")
     private float deathToX, deathToY;
 
     public GameView(GameModel model) {
@@ -79,7 +88,6 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
     }
 
     public void tick(float dt) {
-        // game over ui + anim (solo in PLAY)
         if (model.isPlaying() && model.getLives() <= 0) {
             if (!gameOverUiActive) {
                 gameOverUiActive = true;
@@ -123,7 +131,6 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
 
         Graphics2D g = (Graphics2D) g0.create();
         try {
-            // FIX: hints coerenti (NN + AA OFF)
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
             g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
@@ -213,16 +220,12 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
                 merchantFeetY = roomY + b.y + b.height;
             }
 
-            // draw order: enemy/drops sotto
+            // draw order
             drawEnemy(g, roomX, roomY);
-            
-            // Rendering del Nemico 2 (Enemy2 - Stanze dispari)
             drawEnemy2Units(g, roomX, roomY);
-
-            // boss + bullets
             drawBoss(g, roomX, roomY);
             drawBossBullets(g, roomX, roomY);
-
+            drawArrows(g, roomX, roomY);
             drawRupee(g, roomX, roomY);
             drawPotion(g, roomX, roomY);
 
@@ -255,10 +258,6 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         }
     }
 
-    // ===========================
-    // BOSS render (new refactor)
-    // ===========================
-
     private void drawBoss(Graphics2D g, int roomX, int roomY) {
         if (model.getCurrentRoomIndex() != BOSS_ROOM_INDEX) return;
         if (model.isTransitioning() || sliding) return;
@@ -272,7 +271,21 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         int bx = roomX + Math.round(model.getBossX());
         int by = roomY + Math.round(model.getBossY()) + bob;
 
-        g.drawImage(sprite, bx, by, sprite.getWidth(), sprite.getHeight(), null);
+        int bossW = sprite.getWidth() / 2;
+        int bossH = sprite.getHeight() / 2;
+
+        // AGGIUNGI BLINK EFFECT AL BOSS
+        Composite old = g.getComposite();
+        try {
+            if (model.isBossBlinking()) {
+                float blinkT = model.getBossBlinkT();
+                boolean dim = ((int) (blinkT * 12f)) % 2 == 0;
+                g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, dim ? 0.35f : 1.0f));
+            }
+            g.drawImage(sprite, bx, by, bossW, bossH, null);
+        } finally {
+            g.setComposite(old);
+        }
     }
 
     private BufferedImage getBossSprite() {
@@ -300,9 +313,38 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         }
     }
 
-    // ===========================
-    // TITLE
-    // ===========================
+    private void drawArrows(Graphics2D g, int roomX, int roomY) {
+        if (Assets.arrowUpDown == null || Assets.arrowLR == null) return;
+        
+        for (int i = 0; i < model.getMaxArrows(); i++) {
+            if (!model.isArrowAlive(i)) continue;
+            
+            int ax = roomX + Math.round(model.getArrowX(i));
+            int ay = roomY + Math.round(model.getArrowY(i));
+            
+            GameModel.Facing facing = model.getArrowFacing(i);
+            BufferedImage sprite = null;
+            
+            switch (facing) {
+                case UP -> sprite = Assets.arrowUpDown;
+                case DOWN -> {
+                    sprite = Assets.arrowUpDown;
+                    g.drawImage(sprite, ax + ARROW_DRAW_W, ay, -ARROW_DRAW_W, ARROW_DRAW_H, null);
+                    continue;
+                }
+                case LEFT -> sprite = Assets.arrowLR;
+                case RIGHT -> {
+                    sprite = Assets.arrowLR;
+                    g.drawImage(sprite, ax + ARROW_DRAW_W, ay, -ARROW_DRAW_W, ARROW_DRAW_H, null);
+                    continue;
+                }
+            }
+            
+            if (sprite != null) {
+                g.drawImage(sprite, ax, ay, ARROW_DRAW_W, ARROW_DRAW_H, null);
+            }
+        }
+    }
 
     private void renderTitleScreen(Graphics2D g) {
         int screenW = getWidth();
@@ -350,10 +392,6 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         }
     }
 
-    // ===========================
-    // GAME OVER
-    // ===========================
-
     private void renderGameOverScreen(Graphics2D g) {
         int screenW = getWidth();
         int screenH = getHeight();
@@ -377,7 +415,7 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
             float u = (DEATH_MOVE_DUR <= 0f) ? 1f : (deathAnimT / DEATH_MOVE_DUR);
             u = Math.max(0f, Math.min(1f, u));
 
-            float eased = u * u * (3f - 2f * u); // smoothstep
+            float eased = u * u * (3f - 2f * u);
 
             int x = Math.round(deathFromX + (deathToX - deathFromX) * eased);
             int y = Math.round(deathFromY + (deathToY - deathFromY) * eased);
@@ -480,10 +518,6 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         }
     }
 
-    // ===========================
-    // PLAYER / ENEMY / DROPS
-    // ===========================
-
     private void drawPlayerWithBlink(Graphics2D g, BufferedImage sprite, int x, int y, int w, int h) {
         Composite old = g.getComposite();
         try {
@@ -503,7 +537,6 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         if (Assets.enemy == null) return;
 
         int roomIdx = model.getCurrentRoomIndex();
-        // Enemy1 solo in stanze pari (non shop, non prima stanza)
         if (roomIdx == 0 || roomIdx == RoomManager.SHOP_INDEX || roomIdx % 2 != 0) return;
         if (model.isTransitioning() || sliding) return;
 
@@ -530,51 +563,51 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
     }
 
     /**
-     * Disegna Enemy2 (2 unità) nelle stanze ad indice dispari (escluso shop)
-     * Dimensioni: 64x64 (raddoppiato da 32x32)
+     * Disegna Enemy2 (1 unità) nelle stanze ad indice dispari (escluso shop e boss room)
+     * Dimensioni: 48x48
      */
     private void drawEnemy2Units(Graphics2D g, int roomX, int roomY) {
         int roomIdx = model.getCurrentRoomIndex();
         
-        // Enemy2 solo in stanze dispari (non shop)
-        if (roomIdx == RoomManager.SHOP_INDEX || roomIdx % 2 == 0) return;
+        // Enemy2 solo in stanze dispari (non shop, non boss room)
+        if (roomIdx == RoomManager.SHOP_INDEX || roomIdx % 2 == 0 || roomIdx == BOSS_ROOM_INDEX) return;
         if (model.isTransitioning() || sliding) return;
 
-        // Iteriamo per le 2 unità richieste
-        for (int i = 0; i < 2; i++) {
-            if (!model.isEnemy2Alive(i)) continue;
+        // Disegna solo 1 unità per stanza
+        int i = 0;
+        if (!model.isEnemy2Alive(i)) return;
 
-            // Logica del Blink adattata all'unità
-            if (!model.isEnemy2Blinking(i) || (System.currentTimeMillis() / 50) % 2 == 0) {
-                
-                int dirIndex = Assets.DIR_DOWN;
-                switch (model.getEnemy2Facing(i)) {
-                    case UP    -> dirIndex = Assets.DIR_UP;
-                    case DOWN  -> dirIndex = Assets.DIR_DOWN;
-                    case LEFT  -> dirIndex = Assets.DIR_LEFT;
-                    case RIGHT -> dirIndex = Assets.DIR_RIGHT;
-                }
+        // Logica del Blink adattata all'unità
+        if (!model.isEnemy2Blinking(i) || (System.currentTimeMillis() / 50) % 2 == 0) {
+            
+            int dirIndex = Assets.DIR_DOWN;
+            switch (model.getEnemy2Facing(i)) {
+                case UP    -> dirIndex = Assets.DIR_UP;
+                case DOWN  -> dirIndex = Assets.DIR_DOWN;
+                case LEFT  -> dirIndex = Assets.DIR_LEFT;
+                case RIGHT -> dirIndex = Assets.DIR_RIGHT;
+            }
 
-                int frameIndex = model.getEnemy2AnimFrame(i);
-                BufferedImage enemy2Sprite = Assets.enemy2Walk[dirIndex][frameIndex];
+            int frameIndex = model.getEnemy2AnimFrame(i);
+            BufferedImage enemy2Sprite = Assets.enemy2Walk[dirIndex][frameIndex];
 
-                if (enemy2Sprite != null) {
-                    int spriteW = enemy2Sprite.getWidth();
-                    int spriteH = enemy2Sprite.getHeight();
+            if (enemy2Sprite != null) {
+                int spriteW = enemy2Sprite.getWidth();
+                int spriteH = enemy2Sprite.getHeight();
 
-                    int ex = roomX + Math.round(model.getEnemy2X(i));
-                    int ey = roomY + Math.round(model.getEnemy2Y(i));
+                int ex = roomX + Math.round(model.getEnemy2X(i));
+                int ey = roomY + Math.round(model.getEnemy2Y(i));
 
-                    // Disegna con le dimensioni corrette: 64x64
-                    g.drawImage(enemy2Sprite, ex, ey, ENEMY2_DRAW_W, ENEMY2_DRAW_H, null);
-                } else {
-                    // Fallback se le grafiche non sono pronte
-                    g.setColor(Color.ORANGE);
-                    g.fillRect(roomX + Math.round(model.getEnemy2X(i)), roomY + Math.round(model.getEnemy2Y(i)), ENEMY2_DRAW_W, ENEMY2_DRAW_H);
-                }
+                // Disegna con le dimensioni corrette: 48x48
+                g.drawImage(enemy2Sprite, ex, ey, ENEMY2_DRAW_W, ENEMY2_DRAW_H, null);
+            } else {
+                // Fallback se le grafiche non sono pronte
+                g.setColor(Color.ORANGE);
+                g.fillRect(roomX + Math.round(model.getEnemy2X(i)), roomY + Math.round(model.getEnemy2Y(i)), ENEMY2_DRAW_W, ENEMY2_DRAW_H);
             }
         }
     }
+
 
     private void drawRupee(Graphics2D g, int roomX, int roomY) {
         if (!model.isRupeeAlive()) return;
@@ -622,6 +655,11 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
             case RIGHT -> Assets.DIR_RIGHT;
         };
 
+        if (model.isArcheryActive()) {
+            int f = model.getArcheryFrame();
+            return Assets.playerArrow[dir][f];
+        }
+
         if (model.isAttacking()) {
             int f = model.getAttackFrame();
             return Assets.playerAttack[dir][f];
@@ -635,10 +673,6 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         return Assets.playerIdle[dir];
     }
 
-    // ===========================
-    // HUD / ROOM RENDER
-    // ===========================
-
     private void renderHud(Graphics2D g, int screenW) {
         g.setColor(new Color(20, 20, 20));
         g.fillRect(0, 0, screenW, GameModel.HUD_HEIGHT);
@@ -647,6 +681,7 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
         g.drawString("Player: " + model.getProfileNickname(), 10, 22);
         g.drawString("Vite: " + model.getLives() +
                 "  Rupie: " + model.getRupees() +
+                "  Frecce: " + model.getArrows() +
                 "  Score: " + model.getScore(), 10, 44);
     }
 
@@ -719,10 +754,6 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
             g.fillRect(px, py, GameModel.TILE_SIZE, GameModel.TILE_SIZE);
         }
     }
-    
-    // ===========================
-    // SHOP OVERLAY
-    // ===========================
 
     private void renderShopOverlay(Graphics2D g, int baseX, int baseY, int roomPixelW, int roomPixelH) {
         int w = 360;
@@ -740,7 +771,7 @@ public class GameView extends JPanel implements zelda.model.GameEventListener {
 
         String[] items = {
                 "Pozione (+1 vita)        - 5 rupie",
-                "Item 2 (+100 score)      - 10 rupie",
+                "Freccie x10              - 1 rupia",
                 "Item 3 (+250 score)      - 25 rupie",
                 "Esci"
         };

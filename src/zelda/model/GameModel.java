@@ -1,744 +1,682 @@
 package zelda.model;
 
-import java.util.ArrayList;
-import java.util.List;
+import zelda.root.SoundManager;
 
-public class GameModel extends ObservableModel {
+import java.util.*;
+
+public class GameModel {
 
     public static final int TILE_SIZE = 32;
-    public static final int HUD_HEIGHT = 64;
+    public static final int HUD_HEIGHT = 60;
 
-    // ---- APP STATE ----
-    public enum AppState { TITLE, PLAY }
-    private AppState appState = AppState.TITLE;
+    private boolean isTitle = true;
+    private boolean isPlaying = false;
+    private boolean isTransitioning = false;
+    private boolean isShopOpen = false;
 
-    public AppState getAppState() { return appState; }
-    public boolean isTitle() { return appState == AppState.TITLE; }
-    public boolean isPlaying() { return appState == AppState.PLAY; }
-
-    public void startGame() {
-        appState = AppState.PLAY;
-        resetRun();
-    }
-
-    public void goToTitle() {
-        appState = AppState.TITLE;
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
-        fireEvent(new GameEvent(GameEventType.ROOM_CHANGED));
-        fireEvent(new GameEvent(GameEventType.PLAYER_MOVED));
-    }
-
-    private final RoomManager roomManager = new RoomManager();
     private int currentRoomIndex = 0;
-
-    private boolean transitioning = false;
-    private SlideDir slideDir = SlideDir.LEFT;
     private int nextRoomIndex = 0;
+    private SlideDir slideDir = SlideDir.LEFT;
 
-    private float playerX = 6 * TILE_SIZE;
-    private float playerY = 6 * TILE_SIZE;
+    private final RoomManager roomManager = RoomManager.getInstance();
+    private Room currentRoom;
+    private Room nextRoom;
 
-    private int lives = 3;
-    private int rupees = 0;
-    private int score = 0;
+    // ---- PLAYER ----
+    private float playerX = 96f;
+    private float playerY = 144f;
 
-    private String profileNickname = "Player";
-    private String profileAvatarPath = "";
-    private String profileId = "";
+    private int playerHp = 10;
+    private int maxPlayerHp = 10;
+    private int playerScore = 0;
+    private int playerRupees = 0;
+    private int playerArrows = 10;
 
-    private boolean showInteractPrompt = false;
-
-    private boolean shopOpen = false;
-    private int shopSelectionIndex = 0; // 0..3 (3=Exit)
-
-    private String shopMessage = "";
-    private float shopMessageT = 0f;
-
-    // ---- PLAYER ANIM ----
-    public enum Facing { DOWN, UP, LEFT, RIGHT }
+    // ---- FACING / MOVEMENT ----
+    public enum Facing { UP, DOWN, LEFT, RIGHT }
     private Facing facing = Facing.DOWN;
-    private boolean moving = false;
+    private boolean isMoving = false;
     private int animFrame = 0;
 
     // ---- ATTACK ----
-    private boolean attacking = false;
+    private boolean isAttacking = false;
     private int attackFrame = 0;
 
-    // ---- ENEMY 1 (now supports 2 units) ----
-    private static final int MAX_ENEMY1_UNITS = 2;
-    private final boolean[] enemyAlive = new boolean[MAX_ENEMY1_UNITS];
-    private final int[] enemyHp = new int[MAX_ENEMY1_UNITS];
-    private final float[] enemyX = new float[MAX_ENEMY1_UNITS];
-    private final float[] enemyY = new float[MAX_ENEMY1_UNITS];
-    private final float[] enemyVx = new float[MAX_ENEMY1_UNITS];
-    private final float[] enemyVy = new float[MAX_ENEMY1_UNITS];
-    private final float[] enemyDirTimer = new float[MAX_ENEMY1_UNITS];
-    private final float[] enemyInvulnT = new float[MAX_ENEMY1_UNITS];
-    private final float[] enemyBlinkT = new float[MAX_ENEMY1_UNITS];
+    // ---- ARCHERY ----
+    private boolean isArcheryActive = false;
+    private int archeryFrame = 0;
+    private static final int MAX_ARROWS = 20;
+    private List<Arrow> arrows = new ArrayList<>();
 
-    // Backwards-compat single-enemy getters map to unit 0
-
-    // ---- ENEMY 2 (Array, now single unit as requested) ----
-    private static final int MAX_ENEMY2_UNITS = 1;
-
-    private final boolean[] enemy2Alive = new boolean[MAX_ENEMY2_UNITS];
-    private final int[] enemy2Hp = new int[MAX_ENEMY2_UNITS];
-    private final float[] enemy2X = new float[MAX_ENEMY2_UNITS];
-    private final float[] enemy2Y = new float[MAX_ENEMY2_UNITS];
-    private final float[] enemy2Vx = new float[MAX_ENEMY2_UNITS];
-    private final float[] enemy2Vy = new float[MAX_ENEMY2_UNITS];
-    private final Facing[] enemy2Facing = new Facing[MAX_ENEMY2_UNITS];
-    private final float[] enemy2DirTimer = new float[MAX_ENEMY2_UNITS];
-    private final boolean[] enemy2IsCharging = new boolean[MAX_ENEMY2_UNITS];
-    private final float[] enemy2InvulnT = new float[MAX_ENEMY2_UNITS];
-    private final float[] enemy2BlinkT = new float[MAX_ENEMY2_UNITS];
-    private final int[] enemy2AnimFrame = new int[MAX_ENEMY2_UNITS];
-    private final float[] enemy2AnimT = new float[MAX_ENEMY2_UNITS];
-
-    // ---- PLAYER INVULN ----
+    // ---- PLAYER TIMERS ----
     private float playerInvulnT = 0f;
     private float playerBlinkT = 0f;
+    private boolean isPlayerInvulnerable = false;
+    private boolean isPlayerBlinking = false;
 
-    // ---- RUPEE DROP ----
-    private boolean rupeeAlive = false;
-    private float rupeeX = 0f;
-    private float rupeeY = 0f;
+    // ---- ENEMY 1 ----
+    private float enemyX = 200f;
+    private float enemyY = 200f;
+    private float enemyVx = 0f;
+    private float enemyVy = 0f;
+    private int enemyHp = 1;
+    private float enemyDirTimer = 0f;
+    private float enemyInvulnT = 0f;
+    private float enemyBlinkT = 0f;
+    private boolean isEnemyAlive = true;
+    private boolean isEnemyInvulnerable = false;
+    private boolean isEnemyBlinking = false;
 
-    private boolean rupeeAnimating = false;
-    private float rupeeAnimT = 0f;
-    private float rupeeAnimDur = 0.28f;
-    private float rupeeHopHeight = 12f;
-    private float rupeeLandY = 0f;
+    // ---- ENEMY 2 (Multiple units) ----
+    private static final int ENEMY2_MAX_UNITS = 2;
+    private float[] enemy2X = new float[ENEMY2_MAX_UNITS];
+    private float[] enemy2Y = new float[ENEMY2_MAX_UNITS];
+    private float[] enemy2Vx = new float[ENEMY2_MAX_UNITS];
+    private float[] enemy2Vy = new float[ENEMY2_MAX_UNITS];
+    private int[] enemy2Hp = new int[ENEMY2_MAX_UNITS];
+    private float[] enemy2DirTimer = new float[ENEMY2_MAX_UNITS];
+    private float[] enemy2InvulnT = new float[ENEMY2_MAX_UNITS];
+    private float[] enemy2BlinkT = new float[ENEMY2_MAX_UNITS];
+    private boolean[] isEnemy2Alive = new boolean[ENEMY2_MAX_UNITS];
+    private boolean[] isEnemy2Charging = new boolean[ENEMY2_MAX_UNITS];
+    private boolean[] isEnemy2Blinking = new boolean[ENEMY2_MAX_UNITS];
+    private int[] enemy2AnimFrame = new int[ENEMY2_MAX_UNITS];
+    private Facing[] enemy2Facing = new Facing[ENEMY2_MAX_UNITS];
 
-    // ---- POTION DROP ----
-    private boolean potionAlive = false;
-    private float potionX = 0f;
-    private float potionY = 0f;
-
-    private boolean potionAnimating = false;
-    private float potionAnimT = 0f;
-    private float potionAnimDur = 0.32f;
-    private float potionHopHeight = 14f;
-    private float potionLandY = 0f;
-
-    // =========================
-    // BOSS + PROJECTILES
-    // =========================
-    private float bossBlinkT = 0f;
-    private static final float BOSS_BLINK_SECONDS = 0.35f;
-
-    public boolean isBossBlinking() { return bossBlinkT > 0f; }
-    public float getBossBlinkT() { return bossBlinkT; }
-
-    public void updateBossTimers(float dt) {
-        if (bossBlinkT > 0f) bossBlinkT = Math.max(0f, bossBlinkT - dt);
-    }
-
-    private boolean bossAlive = true;
-    private int bossHp = 10;
-
-    private float bossX = 8 * TILE_SIZE;
-    private float bossY = 4 * TILE_SIZE;
-    private Facing bossFacing = Facing.DOWN;
-
+    // ---- BOSS ----
+    private float bossX = 256f;
+    private float bossY = 192f;
+    private int bossHp = 5;
+    private boolean isBossAlive = true;
     private float bossFloatT = 0f;
     private float bossShootT = 0f;
+    private boolean isBossBlinking = false;
+    private float bossBlinkT = 0f;
+    private Facing bossFacing = Facing.DOWN;
+    private static final int MAX_BOSS_BULLETS = 10;
+    private List<BossBullet> bossBullets = new ArrayList<>();
 
-    private static final int MAX_BOSS_BULLETS = 16;
+    // ---- RUPEE / POTION ----
+    private float rupeeX = 0f;
+    private float rupeeY = 0f;
+    private boolean isRupeeAlive = false;
+    private boolean isRupeeAnimating = false;
+    private float rupeeAnimT = 0f;
+    private float rupeeAnimDur = 0.5f;
+    private float rupeeLandY = 0f;
+    private float rupeeHopHeight = 20f;
 
-    private final boolean[] bossBulletAlive = new boolean[MAX_BOSS_BULLETS];
-    private final float[] bossBulletX = new float[MAX_BOSS_BULLETS];
-    private final float[] bossBulletY = new float[MAX_BOSS_BULLETS];
-    private final float[] bossBulletVx = new float[MAX_BOSS_BULLETS];
-    private final float[] bossBulletVy = new float[MAX_BOSS_BULLETS];
+    private float potionX = 0f;
+    private float potionY = 0f;
+    private boolean isPotionAlive = false;
+    private boolean isPotionAnimating = false;
+    private float potionAnimT = 0f;
+    private float potionAnimDur = 0.5f;
+    private float potionLandY = 0f;
+    private float potionHopHeight = 20f;
 
-    // ---- ENEMY 2 getters/setters ----
-    public int getEnemy2MaxUnits() { return MAX_ENEMY2_UNITS; }
-    public boolean isEnemy2Alive(int i) { return enemy2Alive[i]; }
-    public int getEnemy2Hp(int i) { return enemy2Hp[i]; }
-    public float getEnemy2X(int i) { return enemy2X[i]; }
-    public float getEnemy2Y(int i) { return enemy2Y[i]; }
-    public float getEnemy2Vx(int i) { return enemy2Vx[i]; }
-    public float getEnemy2Vy(int i) { return enemy2Vy[i]; }
-    public Facing getEnemy2Facing(int i) { return enemy2Facing[i]; }
-    public int getEnemy2AnimFrame(int i) { return enemy2AnimFrame[i]; }
-    public boolean isEnemy2Charging(int i) { return enemy2IsCharging[i]; }
-    public float getEnemy2DirTimer(int i) { return enemy2DirTimer[i]; }
-    public boolean isEnemy2Blinking(int i) { return enemy2BlinkT[i] > 0f; }
-    public float getEnemy2BlinkT(int i) { return enemy2BlinkT[i]; }
-    public float getEnemy2AnimT(int i) { return enemy2AnimT[i]; }
+    // ---- SHOP ----
+    private boolean shopOpen = false;
+    private int shopSelectionIndex = 0;
+    private String shopMessage = "";
+    private float shopMessageT = 0f;
+    private boolean showInteractPrompt = false;
 
-    public void setEnemy2Pos(int i, float x, float y) {
-        enemy2X[i] = x;
-        enemy2Y[i] = y;
-        requestRepaint();
+    // ---- PROFILE ----
+    private String profileId = null;
+    private String profileNickname = "Player";
+
+    // ---- LISTENER ----
+    private GameEventListener listener;
+
+    // ---- MUSIC TRACK ----
+    public enum MusicTrack {
+        TITLE, DUNGEON, BOSS
+    }
+    private MusicTrack currentMusicTrack = MusicTrack.TITLE;
+
+    public GameModel() {
+        initializeEnemy2();
+        currentRoom = roomManager.getRoom(currentRoomIndex);
     }
 
-    public void setEnemy2Vel(int i, float vx, float vy) {
-        enemy2Vx[i] = vx;
-        enemy2Vy[i] = vy;
-    }
-
-    public void setEnemy2Facing(int i, Facing f) { enemy2Facing[i] = f; }
-    public void setEnemy2DirTimer(int i, float t) { enemy2DirTimer[i] = t; }
-    public void setEnemy2IsCharging(int i, boolean v) { enemy2IsCharging[i] = v; }
-    public void setEnemy2AnimT(int i, float t) { enemy2AnimT[i] = t; }
-    public void setEnemy2AnimFrame(int i, int f) { enemy2AnimFrame[i] = f; }
-
-    public void updateEnemy2Timers(float dt) {
-        for (int i = 0; i < MAX_ENEMY2_UNITS; i++) {
-            if (enemy2InvulnT[i] > 0f) enemy2InvulnT[i] = Math.max(0f, enemy2InvulnT[i] - dt);
-            if (enemy2BlinkT[i] > 0f) enemy2BlinkT[i] = Math.max(0f, enemy2BlinkT[i] - dt);
+    private void initializeEnemy2() {
+        for (int i = 0; i < ENEMY2_MAX_UNITS; i++) {
+            enemy2X[i] = 100f + (i * 150f);
+            enemy2Y[i] = 200f;
+            enemy2Vx[i] = 0f;
+            enemy2Vy[i] = 0f;
+            enemy2Hp[i] = 2;
+            enemy2DirTimer[i] = 1f;
+            enemy2InvulnT[i] = 0f;
+            enemy2BlinkT[i] = 0f;
+            isEnemy2Alive[i] = true;
+            isEnemy2Charging[i] = false;
+            isEnemy2Blinking[i] = false;
+            enemy2AnimFrame[i] = 0;
+            enemy2Facing[i] = Facing.DOWN;
         }
     }
 
-    public void hitEnemy2(int i, int dmg, float invulnSeconds, float blinkSeconds) {
-        if (!enemy2Alive[i]) return;
-        if (enemy2InvulnT[i] > 0f) return;
-
-        enemy2Hp[i] = Math.max(0, enemy2Hp[i] - dmg);
-        if (enemy2Hp[i] == 0) enemy2Alive[i] = false;
-
-        enemy2InvulnT[i] = Math.max(enemy2InvulnT[i], invulnSeconds);
-        enemy2BlinkT[i] = Math.max(enemy2BlinkT[i], blinkSeconds);
-
-        requestRepaint();
+    // =======================================
+    // MUSIC CONTROL
+    // =======================================
+    public MusicTrack getCurrentMusicTrack() {
+        return currentMusicTrack;
     }
 
-    // ---- ENEMY 1 API (new array-based)
-    public int getEnemyMaxUnits() { return MAX_ENEMY1_UNITS; }
-    public boolean isEnemyAlive(int i) { return enemyAlive[i]; }
-    public int getEnemyHp(int i) { return enemyHp[i]; }
-    public float getEnemyX(int i) { return enemyX[i]; }
-    public float getEnemyY(int i) { return enemyY[i]; }
-    public float getEnemyVx(int i) { return enemyVx[i]; }
-    public float getEnemyVy(int i) { return enemyVy[i]; }
-    public float getEnemyDirTimer(int i) { return enemyDirTimer[i]; }
-    public boolean isEnemyInvulnerable(int i) { return enemyInvulnT[i] > 0f; }
-    public boolean isEnemyBlinking(int i) { return enemyBlinkT[i] > 0f; }
-    public float getEnemyBlinkT(int i) { return enemyBlinkT[i]; }
-
-    public void setEnemyPos(int i, float x, float y) {
-        enemyX[i] = x;
-        enemyY[i] = y;
-        requestRepaint();
-    }
-
-    public void setEnemyVel(int i, float vx, float vy) {
-        enemyVx[i] = vx;
-        enemyVy[i] = vy;
-    }
-
-    public void setEnemyDirTimer(int i, float t) { enemyDirTimer[i] = t; }
-
-    public void updateEnemyTimers(float dt) {
-        for (int i = 0; i < MAX_ENEMY1_UNITS; i++) {
-            if (enemyInvulnT[i] > 0f) enemyInvulnT[i] = Math.max(0f, enemyInvulnT[i] - dt);
-            if (enemyBlinkT[i] > 0f) enemyBlinkT[i] = Math.max(0f, enemyBlinkT[i] - dt);
+    public void setMusicTrack(MusicTrack track) {
+        if (currentMusicTrack != track) {
+            currentMusicTrack = track;
+            SoundManager.stopMusic();
+            switch (track) {
+                case TITLE -> SoundManager.playMusic("game_title");
+                case DUNGEON -> SoundManager.playMusic("dungeon");
+                case BOSS -> SoundManager.playMusic("boss_ost");
+            }
         }
     }
 
-    public void hitEnemy(int i, int dmg, float invulnSeconds, float blinkSeconds) {
-        if (!enemyAlive[i]) return;
-        if (enemyInvulnT[i] > 0f) return;
-
-        enemyHp[i] = Math.max(0, enemyHp[i] - dmg);
-        if (enemyHp[i] == 0) enemyAlive[i] = false;
-
-        enemyInvulnT[i] = Math.max(enemyInvulnT[i], invulnSeconds);
-        enemyBlinkT[i] = Math.max(enemyBlinkT[i], blinkSeconds);
-
-        requestRepaint();
+    // =======================================
+    // GAME STATE
+    // =======================================
+    public void startGame() {
+        isTitle = false;
+        isPlaying = true;
+        playerX = 96f;
+        playerY = 144f;
+        playerHp = maxPlayerHp;
+        playerScore = 0;
+        playerRupees = 0;
+        playerArrows = 10;
+        currentRoomIndex = 0;
+        currentRoom = roomManager.getRoom(currentRoomIndex);
+        resetAllEnemies();
     }
 
-    // Backwards-compatible single-enemy accessors mapped to unit 0
-    public boolean isEnemyAlive() { return enemyAlive[0]; }
-    public int getEnemyHp() { return enemyHp[0]; }
-    public float getEnemyX() { return enemyX[0]; }
-    public float getEnemyY() { return enemyY[0]; }
-    public void setEnemyPos(float x, float y) { setEnemyPos(0, x, y); }
-    public float getEnemyVx() { return enemyVx[0]; }
-    public float getEnemyVy() { return enemyVy[0]; }
-    public void setEnemyVel(float vx, float vy) { setEnemyVel(0, vx, vy); }
-    public float getEnemyDirTimer() { return enemyDirTimer[0]; }
-    public void setEnemyDirTimer(float t) { setEnemyDirTimer(0, t); }
-    public boolean isEnemyInvulnerable() { return isEnemyInvulnerable(0); }
-    public boolean isEnemyBlinking() { return isEnemyBlinking(0); }
-    public float getEnemyBlinkT() { return getEnemyBlinkT(0); }
-
-    // Backward-compatible overload for existing single-enemy calls
-    public void hitEnemy(int dmg, float invulnSeconds, float blinkSeconds) {
-        hitEnemy(0, dmg, invulnSeconds, blinkSeconds);
+    public void resetRun() {
+        isTitle = true;
+        isPlaying = false;
+        isTransitioning = false;
+        isShopOpen = false;
+        currentRoomIndex = 0;
+        currentRoom = roomManager.getRoom(currentRoomIndex);
+        resetAllEnemies();
     }
 
-    // =========================
-    // Player helper APIs (restored for compatibility)
-    // =========================
-    public boolean isPlayerInvulnerable() { return playerInvulnT > 0f; }
-    public boolean isPlayerBlinking() { return playerBlinkT > 0f; }
-    public float getPlayerBlinkT() { return playerBlinkT; }
+    private void resetAllEnemies() {
+        isEnemyAlive = true;
+        enemyHp = 1;
+        enemyX = 200f;
+        enemyY = 200f;
+        enemyVx = 0f;
+        enemyVy = 0f;
 
-    public void updatePlayerTimers(float dt) {
-        if (playerInvulnT > 0f) playerInvulnT = Math.max(0f, playerInvulnT - dt);
-        if (playerBlinkT > 0f) playerBlinkT = Math.max(0f, playerBlinkT - dt);
+        initializeEnemy2();
+
+        isBossAlive = true;
+        bossHp = 5;
+        bossX = 256f;
+        bossY = 192f;
+        bossBullets.clear();
     }
 
-    public void hitPlayer(int dmg, float invulnSeconds, float blinkSeconds) {
-        if (playerInvulnT > 0f) return;
-        damagePlayer(dmg);
-        playerInvulnT = Math.max(playerInvulnT, invulnSeconds);
-        playerBlinkT = Math.max(playerBlinkT, blinkSeconds);
-        requestRepaint();
-    }
+    public boolean isTitle() { return isTitle; }
+    public boolean isPlaying() { return isPlaying; }
+    public boolean isTransitioning() { return isTransitioning; }
+    public boolean isShopOpen() { return isShopOpen; }
 
-    // =========================
-    // Remaining APIs (player, boss, drops) unchanged
-    // =========================
-
-    public Room getRoom() { return roomManager.getRoom(currentRoomIndex); }
-    public Room getNextRoom() { return roomManager.getRoom(nextRoomIndex); }
     public int getCurrentRoomIndex() { return currentRoomIndex; }
-
-    public boolean isTransitioning() { return transitioning; }
+    public Room getRoom() { return currentRoom; }
+    public Room getNextRoom() { return nextRoom; }
     public SlideDir getSlideDir() { return slideDir; }
 
-    public float getPlayerX() { return playerX; }
-    public float getPlayerY() { return playerY; }
-
-    public int getLives() { return lives; }
-    public int getRupees() { return rupees; }
-    public int getScore() { return score; }
-
-    public String getProfileNickname() { return profileNickname; }
-    public String getProfileAvatarPath() { return profileAvatarPath; }
-    public String getProfileId() { return profileId; }
-
-    public Facing getFacing() { return facing; }
-    public void setFacing(Facing f) { facing = f; }
-
-    public boolean isMoving() { return moving; }
-    public void setMoving(boolean v) { moving = v; }
-
-    public int getAnimFrame() { return animFrame; }
-    public void setAnimFrame(int f) { animFrame = f; }
-
-    public boolean isAttacking() { return attacking; }
-    public void setAttacking(boolean v) { attacking = v; }
-
-    public int getAttackFrame() { return attackFrame; }
-    public void setAttackFrame(int f) { attackFrame = f; }
-
-    public void requestRepaint() {
-        fireEvent(new GameEvent(GameEventType.PLAYER_MOVED));
-    }
-
-    // ---- room transition ----
-    public void beginRoomTransition(int targetRoomIndex, SlideDir dir) {
-        if (transitioning) return;
-        if (targetRoomIndex < 0 || targetRoomIndex >= roomManager.count()) return;
-
-        transitioning = true;
+    public void beginRoomTransition(int nextIdx, SlideDir dir) {
+        isTransitioning = true;
+        nextRoomIndex = nextIdx;
         slideDir = dir;
-        nextRoomIndex = targetRoomIndex;
-
-        fireEvent(new GameEvent(GameEventType.ROOM_CHANGED));
+        nextRoom = roomManager.getRoom(nextIdx);
+        fireGameEvent(GameEventType.ROOM_CHANGED);
     }
 
     public void finishRoomTransition() {
-        if (!transitioning) return;
-
         currentRoomIndex = nextRoomIndex;
-        transitioning = false;
-
-        // Respawn arena entities for normal rooms (exclude start(0), boss, and shop)
-        if (currentRoomIndex != 0 && currentRoomIndex != RoomManager.PLAY_LAST_INDEX && currentRoomIndex != RoomManager.SHOP_INDEX) {
-            respawnArenaEntities();
-        }
-
-        fireEvent(new GameEvent(GameEventType.ROOM_CHANGED));
+        currentRoom = nextRoom;
+        isTransitioning = false;
+        resetAllEnemies();
+        fireGameEvent(GameEventType.ROOM_CHANGED);
     }
 
-    private void respawnArenaEntities() {
-        // Decide behavior based on current room parity
-        if (currentRoomIndex % 2 == 0) {
-            // EVEN rooms: spawn 2 x Enemy1 and disable Enemy2
-            // spawn them around the room center to avoid walls/obstacles
-            float centerX = 6 * TILE_SIZE; // room center x (matches player start)
-            float centerY = 5 * TILE_SIZE; // room center y (adjusted)
-            enemyAlive[0] = true;
-            enemyAlive[1] = true;
-            enemyHp[0] = 3;
-            enemyHp[1] = 3;
-            enemyX[0] = centerX - TILE_SIZE; // left of center
-            enemyY[0] = centerY;
-            enemyX[1] = centerX + TILE_SIZE; // right of center
-            enemyY[1] = centerY;
-            for (int i = 0; i < MAX_ENEMY1_UNITS; i++) {
-                enemyVx[i] = 0f;
-                enemyVy[i] = 0f;
-                enemyDirTimer[i] = 0f;
-                enemyInvulnT[i] = 0f;
-                enemyBlinkT[i] = 0f;
-            }
+    // =======================================
+    // PLAYER MOVEMENT
+    // =======================================
+    public float getPlayerX() { return playerX; }
+    public float getPlayerY() { return playerY; }
 
-            // disable enemy2
-            for (int i = 0; i < MAX_ENEMY2_UNITS; i++) enemy2Alive[i] = false;
-        } else {
-            // ODD rooms: spawn 1 x Enemy2 (as requested) and disable Enemy1
-            for (int i = 0; i < MAX_ENEMY1_UNITS; i++) enemyAlive[i] = false;
-
-            for (int i = 0; i < MAX_ENEMY2_UNITS; i++) {
-                enemy2Alive[i] = true;
-                enemy2Hp[i] = 2;
-                enemy2X[i] = 7 * TILE_SIZE;
-                enemy2Y[i] = 5 * TILE_SIZE;
-                enemy2Vx[i] = 0f;
-                enemy2Vy[i] = 0f;
-                enemy2Facing[i] = Facing.RIGHT;
-                enemy2DirTimer[i] = 0f;
-                enemy2IsCharging[i] = false;
-                enemy2InvulnT[i] = 0f;
-                enemy2BlinkT[i] = 0f;
-                enemy2AnimFrame[i] = 0;
-                enemy2AnimT[i] = 0f;
-            }
-        }
-
-        rupeeAlive = false;
-        rupeeAnimating = false;
-        potionAlive = false;
-        potionAnimating = false;
-    }
-
-    // ---- move player ----
     public void movePlayerTo(float x, float y) {
         playerX = x;
         playerY = y;
-        fireEvent(new GameEvent(GameEventType.PLAYER_MOVED));
+        fireGameEvent(GameEventType.PLAYER_MOVED);
     }
 
-    // ---- HUD changes ----
-    public void addRupees(int amount) {
-        rupees += amount;
-        if (rupees < 0) rupees = 0;
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
-    }
+    public void setFacing(Facing f) { facing = f; }
+    public Facing getFacing() { return facing; }
 
-    public void addScore(int amount) {
-        score += amount;
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
-    }
+    public void setMoving(boolean v) { isMoving = v; }
+    public boolean isMoving() { return isMoving; }
 
-    public void addLives(int amount) {
-        lives += amount;
-        if (lives < 0) lives = 0;
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
-    }
+    public void setAnimFrame(int f) { animFrame = f; }
+    public int getAnimFrame() { return animFrame; }
 
-    public void damagePlayer(int dmg) {
-        lives -= dmg;
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
-        if (lives <= 0) fireEvent(new GameEvent(GameEventType.GAME_OVER));
-    }
+    // =======================================
+    // ATTACK
+    // =======================================
+    public void setAttacking(boolean v) { isAttacking = v; }
+    public boolean isAttacking() { return isAttacking; }
 
-    public void setActiveProfile(String id, String nickname, String avatarPath) {
-        profileId = (id == null) ? "" : id.trim();
-        profileNickname = (nickname == null || nickname.isBlank()) ? "Player" : nickname.trim();
-        profileAvatarPath = (avatarPath == null) ? "" : avatarPath.trim();
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
-    }
+    public void setAttackFrame(int f) { attackFrame = f; }
+    public int getAttackFrame() { return attackFrame; }
 
-    public boolean isShowInteractPrompt() { return showInteractPrompt; }
-    public void setShowInteractPrompt(boolean v) {
-        if (showInteractPrompt == v) return;
-        showInteractPrompt = v;
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
-    }
+    // =======================================
+    // ARCHERY
+    // =======================================
+    public void setArcheryActive(boolean v) { isArcheryActive = v; }
+    public boolean isArcheryActive() { return isArcheryActive; }
 
-    public boolean isShopOpen() { return shopOpen; }
-    public int getShopSelectionIndex() { return shopSelectionIndex; }
+    public void setArcheryFrame(int f) { archeryFrame = f; }
+    public int getArcheryFrame() { return archeryFrame; }
 
-    public void setShopSelectionIndex(int idx) {
-        int clamped = Math.max(0, Math.min(idx, 3));
-        if (shopSelectionIndex == clamped) return;
-        shopSelectionIndex = clamped;
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
-    }
+    public int getArrows() { return playerArrows; }
+    public void addArrows(int count) { playerArrows = Math.max(0, playerArrows + count); }
 
-    public void openShop() {
-        if (shopOpen) return;
-        shopOpen = true;
-        shopSelectionIndex = 0;
-        shopMessage = "";
-        shopMessageT = 0f;
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
-    }
-
-    public void closeShop() {
-        if (!shopOpen) return;
-        shopOpen = false;
-        shopMessage = "";
-        shopMessageT = 0f;
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
-    }
-
-    public String getShopMessage() { return shopMessage; }
-    public float getShopMessageT() { return shopMessageT; }
-
-    public void showShopMessage(String msg, float seconds) {
-        shopMessage = (msg == null) ? "" : msg;
-        shopMessageT = Math.max(0f, seconds);
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
-    }
-
-    public void updateShopTimers(float dt) {
-        if (shopMessageT > 0f) {
-            shopMessageT = Math.max(0f, shopMessageT - dt);
-            if (shopMessageT == 0f) shopMessage = "";
+    public void spawnArrow(float x, float y, float vx, float vy, Facing facing) {
+        if (arrows.size() < MAX_ARROWS) {
+            arrows.add(new Arrow(x, y, vx, vy, facing));
+            playerArrows = Math.max(0, playerArrows - 1);
         }
     }
 
-    // ---- rupee ----
-    public boolean isRupeeAlive() { return rupeeAlive; }
+    public void despawnArrow(int idx) {
+        if (idx >= 0 && idx < arrows.size()) {
+            arrows.remove(idx);
+        }
+    }
+
+    public void updateArrows(float dt) {
+        for (Arrow arrow : arrows) {
+            arrow.update(dt);
+        }
+    }
+
+    public int getMaxArrows() { return arrows.size(); }
+    public boolean isArrowAlive(int idx) { return idx >= 0 && idx < arrows.size(); }
+    public float getArrowX(int idx) { return idx >= 0 && idx < arrows.size() ? arrows.get(idx).x : 0; }
+    public float getArrowY(int idx) { return idx >= 0 && idx < arrows.size() ? arrows.get(idx).y : 0; }
+    public Facing getArrowFacing(int idx) { return idx >= 0 && idx < arrows.size() ? arrows.get(idx).facing : Facing.DOWN; }
+
+    // =======================================
+    // BOSS BULLETS
+    // =======================================
+    public void spawnBossBullet(float x, float y, float vx, float vy) {
+        if (bossBullets.size() < MAX_BOSS_BULLETS) {
+            bossBullets.add(new BossBullet(x, y, vx, vy));
+        }
+    }
+
+    public void despawnBossBullet(int idx) {
+        if (idx >= 0 && idx < bossBullets.size()) {
+            bossBullets.remove(idx);
+        }
+    }
+
+    public void updateBossBullets(float dt) {
+        for (BossBullet bullet : bossBullets) {
+            bullet.update(dt);
+        }
+    }
+
+    public int getBossBulletCount() { return bossBullets.size(); }
+    public boolean isBossBulletAlive(int idx) { return idx >= 0 && idx < bossBullets.size(); }
+    public float getBossBulletX(int idx) { return idx >= 0 && idx < bossBullets.size() ? bossBullets.get(idx).x : 0; }
+    public float getBossBulletY(int idx) { return idx >= 0 && idx < bossBullets.size() ? bossBullets.get(idx).y : 0; }
+
+    // =======================================
+    // PLAYER HEALTH
+    // =======================================
+    public int getLives() { return playerHp; }
+    public void addLives(int count) { playerHp = Math.min(playerHp + count, maxPlayerHp); fireGameEvent(GameEventType.HUD_CHANGED); }
+
+    public void hitPlayer(int damage, float invulnSeconds, float blinkSeconds) {
+        playerHp -= damage;
+        playerInvulnT = invulnSeconds;
+        playerBlinkT = blinkSeconds;
+        isPlayerInvulnerable = true;
+        isPlayerBlinking = true;
+        fireGameEvent(GameEventType.HUD_CHANGED);
+        if (playerHp <= 0) {
+            fireGameEvent(GameEventType.GAME_OVER);
+        }
+    }
+
+    public boolean isPlayerInvulnerable() { return isPlayerInvulnerable; }
+    public boolean isPlayerBlinking() { return isPlayerBlinking; }
+    public float getPlayerBlinkT() { return playerBlinkT; }
+
+    public void updatePlayerTimers(float dt) {
+        if (playerInvulnT > 0) {
+            playerInvulnT -= dt;
+            if (playerInvulnT <= 0) isPlayerInvulnerable = false;
+        }
+        if (playerBlinkT > 0) {
+            playerBlinkT -= dt;
+            if (playerBlinkT <= 0) isPlayerBlinking = false;
+        }
+    }
+
+    // =======================================
+    // SCORE & RUPEES
+    // =======================================
+    public int getScore() { return playerScore; }
+    public void addScore(int amount) { playerScore += amount; fireGameEvent(GameEventType.HUD_CHANGED); }
+
+    public int getRupees() { return playerRupees; }
+    public void addRupees(int count) { playerRupees = Math.max(0, playerRupees + count); fireGameEvent(GameEventType.HUD_CHANGED); }
+
+    // =======================================
+    // ENEMY 1
+    // =======================================
+    public float getEnemyX() { return enemyX; }
+    public float getEnemyY() { return enemyY; }
+    public float getEnemyVx() { return enemyVx; }
+    public float getEnemyVy() { return enemyVy; }
+    public int getEnemyHp() { return enemyHp; }
+
+    public void setEnemyPos(float x, float y) { enemyX = x; enemyY = y; }
+    public void setEnemyVel(float vx, float vy) { enemyVx = vx; enemyVy = vy; }
+
+    public float getEnemyDirTimer() { return enemyDirTimer; }
+    public void setEnemyDirTimer(float t) { enemyDirTimer = t; }
+
+    public boolean isEnemyAlive() { return isEnemyAlive; }
+    public boolean isEnemyInvulnerable() { return isEnemyInvulnerable; }
+    public boolean isEnemyBlinking() { return isEnemyBlinking; }
+    public float getEnemyBlinkT() { return enemyBlinkT; }
+
+    public void hitEnemy(int damage, float invulnSeconds, float blinkSeconds) {
+        enemyHp -= damage;
+        enemyInvulnT = invulnSeconds;
+        enemyBlinkT = blinkSeconds;
+        isEnemyInvulnerable = true;
+        isEnemyBlinking = true;
+        if (enemyHp <= 0) {
+            isEnemyAlive = false;
+        }
+    }
+
+    public void updateEnemyTimers(float dt) {
+        if (enemyInvulnT > 0) {
+            enemyInvulnT -= dt;
+            if (enemyInvulnT <= 0) isEnemyInvulnerable = false;
+        }
+        if (enemyBlinkT > 0) {
+            enemyBlinkT -= dt;
+            if (enemyBlinkT <= 0) isEnemyBlinking = false;
+        }
+    }
+
+    // =======================================
+    // ENEMY 2
+    // =======================================
+    public int getEnemy2MaxUnits() { return ENEMY2_MAX_UNITS; }
+
+    public float getEnemy2X(int i) { return i >= 0 && i < ENEMY2_MAX_UNITS ? enemy2X[i] : 0; }
+    public float getEnemy2Y(int i) { return i >= 0 && i < ENEMY2_MAX_UNITS ? enemy2Y[i] : 0; }
+    public float getEnemy2Vx(int i) { return i >= 0 && i < ENEMY2_MAX_UNITS ? enemy2Vx[i] : 0; }
+    public float getEnemy2Vy(int i) { return i >= 0 && i < ENEMY2_MAX_UNITS ? enemy2Vy[i] : 0; }
+    public int getEnemy2Hp(int i) { return i >= 0 && i < ENEMY2_MAX_UNITS ? enemy2Hp[i] : 0; }
+
+    public void setEnemy2Pos(int i, float x, float y) {
+        if (i >= 0 && i < ENEMY2_MAX_UNITS) {
+            enemy2X[i] = x;
+            enemy2Y[i] = y;
+        }
+    }
+    public void setEnemy2Vel(int i, float vx, float vy) {
+        if (i >= 0 && i < ENEMY2_MAX_UNITS) {
+            enemy2Vx[i] = vx;
+            enemy2Vy[i] = vy;
+        }
+    }
+
+    public float getEnemy2DirTimer(int i) { return i >= 0 && i < ENEMY2_MAX_UNITS ? enemy2DirTimer[i] : 0; }
+    public void setEnemy2DirTimer(int i, float t) {
+        if (i >= 0 && i < ENEMY2_MAX_UNITS) enemy2DirTimer[i] = t;
+    }
+
+    public boolean isEnemy2Alive(int i) { return i >= 0 && i < ENEMY2_MAX_UNITS ? isEnemy2Alive[i] : false; }
+    public boolean isEnemy2Blinking(int i) { return i >= 0 && i < ENEMY2_MAX_UNITS ? isEnemy2Blinking[i] : false; }
+    public boolean isEnemy2Charging(int i) { return i >= 0 && i < ENEMY2_MAX_UNITS ? isEnemy2Charging[i] : false; }
+    public Facing getEnemy2Facing(int i) { return i >= 0 && i < ENEMY2_MAX_UNITS ? enemy2Facing[i] : Facing.DOWN; }
+    public int getEnemy2AnimFrame(int i) { return i >= 0 && i < ENEMY2_MAX_UNITS ? enemy2AnimFrame[i] : 0; }
+
+    public void setEnemy2Facing(int i, Facing f) {
+        if (i >= 0 && i < ENEMY2_MAX_UNITS) enemy2Facing[i] = f;
+    }
+    public void setEnemy2IsCharging(int i, boolean v) {
+        if (i >= 0 && i < ENEMY2_MAX_UNITS) isEnemy2Charging[i] = v;
+    }
+    public void setEnemy2AnimFrame(int i, int f) {
+        if (i >= 0 && i < ENEMY2_MAX_UNITS) enemy2AnimFrame[i] = f;
+    }
+
+    public void hitEnemy2(int i, int damage, float invulnSeconds, float blinkSeconds) {
+        if (i >= 0 && i < ENEMY2_MAX_UNITS) {
+            enemy2Hp[i] -= damage;
+            enemy2InvulnT[i] = invulnSeconds;
+            enemy2BlinkT[i] = blinkSeconds;
+            isEnemy2Blinking[i] = true;
+            if (enemy2Hp[i] <= 0) {
+                isEnemy2Alive[i] = false;
+            }
+        }
+    }
+
+    public void updateEnemy2Timers(float dt) {
+        for (int i = 0; i < ENEMY2_MAX_UNITS; i++) {
+            if (enemy2InvulnT[i] > 0) {
+                enemy2InvulnT[i] -= dt;
+            }
+            if (enemy2BlinkT[i] > 0) {
+                enemy2BlinkT[i] -= dt;
+                if (enemy2BlinkT[i] <= 0) isEnemy2Blinking[i] = false;
+            }
+        }
+    }
+
+    // =======================================
+    // RUPEE
+    // =======================================
+    public boolean isRupeeAlive() { return isRupeeAlive; }
     public float getRupeeX() { return rupeeX; }
     public float getRupeeY() { return rupeeY; }
-    public boolean isRupeeAnimating() { return rupeeAnimating; }
+    public boolean isRupeeAnimating() { return isRupeeAnimating; }
 
     public void spawnRupee(float x, float y) {
-        rupeeAlive = true;
         rupeeX = x;
         rupeeY = y;
-
-        rupeeAnimating = true;
+        isRupeeAlive = true;
+        isRupeeAnimating = true;
         rupeeAnimT = 0f;
-        rupeeAnimDur = 0.28f;
-        rupeeHopHeight = 12f;
         rupeeLandY = y;
-
-        requestRepaint();
     }
 
     public void despawnRupee() {
-        rupeeAlive = false;
-        rupeeAnimating = false;
-        requestRepaint();
+        isRupeeAlive = false;
+        isRupeeAnimating = false;
     }
 
     public void updateRupeeAnim(float dt) {
-        if (!rupeeAlive || !rupeeAnimating) return;
-
+        if (!isRupeeAnimating) return;
         rupeeAnimT += dt;
-        float t = rupeeAnimT / rupeeAnimDur;
-        if (t >= 1f) {
-            rupeeAnimating = false;
-            rupeeY = rupeeLandY;
-            requestRepaint();
+        if (rupeeAnimT >= rupeeAnimDur) {
+            isRupeeAnimating = false;
             return;
         }
-
-        float arc = 4f * rupeeHopHeight * t * (1f - t);
-        rupeeY = rupeeLandY - arc;
-        requestRepaint();
+        float u = rupeeAnimT / rupeeAnimDur;
+        float u2 = 1f - u;
+        float height = u2 * u2 * rupeeHopHeight;
+        rupeeY = rupeeLandY - height;
     }
 
-    // ---- potion ----
-    public boolean isPotionAlive() { return potionAlive; }
+    // =======================================
+    // POTION
+    // =======================================
+    public boolean isPotionAlive() { return isPotionAlive; }
     public float getPotionX() { return potionX; }
     public float getPotionY() { return potionY; }
-    public boolean isPotionAnimating() { return potionAnimating; }
+    public boolean isPotionAnimating() { return isPotionAnimating; }
 
     public void spawnPotion(float x, float y) {
-        potionAlive = true;
         potionX = x;
         potionY = y;
-
-        potionAnimating = true;
+        isPotionAlive = true;
+        isPotionAnimating = true;
         potionAnimT = 0f;
-        potionAnimDur = 0.32f;
-        potionHopHeight = 14f;
         potionLandY = y;
-
-        requestRepaint();
     }
 
     public void despawnPotion() {
-        potionAlive = false;
-        potionAnimating = false;
-        requestRepaint();
+        isPotionAlive = false;
+        isPotionAnimating = false;
     }
 
     public void updatePotionAnim(float dt) {
-        if (!potionAlive || !potionAnimating) return;
-
+        if (!isPotionAnimating) return;
         potionAnimT += dt;
-        float t = potionAnimT / potionAnimDur;
-        if (t >= 1f) {
-            potionAnimating = false;
-            potionY = potionLandY;
-            requestRepaint();
+        if (potionAnimT >= potionAnimDur) {
+            isPotionAnimating = false;
             return;
         }
-
-        float arc = 4f * potionHopHeight * t * (1f - t);
-        potionY = potionLandY - arc;
-        requestRepaint();
+        float u = potionAnimT / potionAnimDur;
+        float u2 = 1f - u;
+        float height = u2 * u2 * potionHopHeight;
+        potionY = potionLandY - height;
     }
 
-    // =========================
-    // BOSS API
-    // =========================
-    public boolean isBossAlive() { return bossAlive; }
-    public int getBossHp() { return bossHp; }
+    // =======================================
+    // BOSS
+    // =======================================
     public float getBossX() { return bossX; }
     public float getBossY() { return bossY; }
+    public boolean isBossAlive() { return isBossAlive; }
+    public boolean isBossBlinking() { return isBossBlinking; }
+    public float getBossBlinkT() { return bossBlinkT; }
     public Facing getBossFacing() { return bossFacing; }
     public float getBossFloatT() { return bossFloatT; }
     public float getBossShootT() { return bossShootT; }
 
-    public void setBossPos(float x, float y) {
-        bossX = x;
-        bossY = y;
-        requestRepaint();
-    }
-
+    public void setBossPos(float x, float y) { bossX = x; bossY = y; }
     public void setBossFacing(Facing f) { bossFacing = f; }
-
     public void addBossFloatT(float dt) { bossFloatT += dt; }
     public void setBossShootT(float t) { bossShootT = t; }
 
-    public void hitBoss(int dmg) {
-        if (!bossAlive) return;
-
-        bossHp = Math.max(0, bossHp - dmg);
-        bossBlinkT = Math.max(bossBlinkT, BOSS_BLINK_SECONDS);
-
-        if (bossHp == 0) {
-            bossAlive = false;
-        }
-        requestRepaint();
-    }
-
-    // =========================
-    // PROJECTILES API
-    // =========================
-    public int getBossBulletCount() { return MAX_BOSS_BULLETS; }
-    public boolean isBossBulletAlive(int i) { return bossBulletAlive[i]; }
-    public float getBossBulletX(int i) { return bossBulletX[i]; }
-    public float getBossBulletY(int i) { return bossBulletY[i]; }
-
-    public void despawnBossBullet(int i) {
-        bossBulletAlive[i] = false;
-    }
-
-    public boolean spawnBossBullet(float x, float y, float vx, float vy) {
-        for (int i = 0; i < MAX_BOSS_BULLETS; i++) {
-            if (!bossBulletAlive[i]) {
-                bossBulletAlive[i] = true;
-                bossBulletX[i] = x;
-                bossBulletY[i] = y;
-                bossBulletVx[i] = vx;
-                bossBulletVy[i] = vy;
-                requestRepaint();
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public void updateBossBullets(float dt) {
-        for (int i = 0; i < MAX_BOSS_BULLETS; i++) {
-            if (!bossBulletAlive[i]) continue;
-            bossBulletX[i] += bossBulletVx[i] * dt;
-            bossBulletY[i] += bossBulletVy[i] * dt;
+    public void hitBoss(int damage) {
+        bossHp -= damage;
+        isBossBlinking = true;
+        bossBlinkT = 0.25f;
+        if (bossHp <= 0) {
+            isBossAlive = false;
         }
     }
 
-    // ---- reset ----
-    public void resetRun() {
-        transitioning = false;
-        nextRoomIndex = 0;
-        slideDir = SlideDir.LEFT;
+    public void updateBossTimers(float dt) {
+        if (bossBlinkT > 0) {
+            bossBlinkT -= dt;
+            if (bossBlinkT <= 0) isBossBlinking = false;
+        }
+    }
 
-        currentRoomIndex = 0;
+    // =======================================
+    // SHOP
+    // =======================================
+    public void openShop() { shopOpen = true; fireGameEvent(GameEventType.HUD_CHANGED); }
+    public void closeShop() { shopOpen = false; fireGameEvent(GameEventType.HUD_CHANGED); }
+    public int getShopSelectionIndex() { return shopSelectionIndex; }
+    public void setShopSelectionIndex(int idx) {
+        shopSelectionIndex = Math.max(0, Math.min(3, idx));
+        fireGameEvent(GameEventType.HUD_CHANGED);
+    }
 
-        playerX = 6 * TILE_SIZE;
-        playerY = 6 * TILE_SIZE;
+    public String getShopMessage() { return shopMessage; }
+    public float getShopMessageT() { return shopMessageT; }
+    public void showShopMessage(String msg, float duration) { shopMessage = msg; shopMessageT = duration; }
 
-        lives = 3;
-        rupees = 0;
-        score = 0;
+    public void updateShopTimers(float dt) {
+        if (shopMessageT > 0) shopMessageT -= dt;
+    }
 
-        shopOpen = false;
-        shopSelectionIndex = 0;
-        showInteractPrompt = false;
+    // =======================================
+    // PROFILE
+    // =======================================
+    public String getProfileId() { return profileId; }
+    public String getProfileNickname() { return profileNickname; }
+    public void setActiveProfile(String id, String nickname, String serverCode) {
+        profileId = id;
+        profileNickname = nickname;
+    }
 
-        shopMessage = "";
-        shopMessageT = 0f;
+    // =======================================
+    // INTERACT PROMPT
+    // =======================================
+    public void setShowInteractPrompt(boolean v) { showInteractPrompt = v; }
+    public boolean shouldShowInteractPrompt() { return showInteractPrompt; }
 
-        facing = Facing.DOWN;
-        moving = false;
-        animFrame = 0;
+    // =======================================
+    // EVENTS
+    // =======================================
+    public void addListener(GameEventListener l) { listener = l; }
+    public void requestRepaint() { fireGameEvent(GameEventType.PLAYER_MOVED); }
 
-        attacking = false;
-        attackFrame = 0;
+    private void fireGameEvent(GameEventType type) {
+        if (listener != null) {
+            listener.onGameEvent(new GameEvent(type));
+        }
+    }
 
-        playerInvulnT = 0f;
-        playerBlinkT = 0f;
+    // =======================================
+    // INNER CLASSES
+    // =======================================
+    public static class Arrow {
+        public float x, y, vx, vy;
+        public Facing facing;
 
-        rupeeAlive = false;
-        rupeeAnimating = false;
-        potionAlive = false;
-        potionAnimating = false;
-
-        // Enemy1 reset (spawned near room center)
-        float centerX = 6 * TILE_SIZE;
-        float centerY = 5 * TILE_SIZE;
-        enemyAlive[0] = true;
-        enemyAlive[1] = true;
-        enemyHp[0] = 3;
-        enemyHp[1] = 3;
-        enemyX[0] = centerX - TILE_SIZE;
-        enemyY[0] = centerY;
-        enemyX[1] = centerX + TILE_SIZE;
-        enemyY[1] = centerY;
-        for (int i = 0; i < MAX_ENEMY1_UNITS; i++) {
-            enemyVx[i] = 0f;
-            enemyVy[i] = 0f;
-            enemyDirTimer[i] = 0f;
-            enemyInvulnT[i] = 0f;
-            enemyBlinkT[i] = 0f;
+        public Arrow(float x, float y, float vx, float vy, Facing facing) {
+            this.x = x;
+            this.y = y;
+            this.vx = vx;
+            this.vy = vy;
+            this.facing = facing;
         }
 
-        // Enemy2 reset (single unit)
-        for (int i = 0; i < MAX_ENEMY2_UNITS; i++) {
-            enemy2Alive[i] = true;
-            enemy2Hp[i] = 2;
-            enemy2X[i] = 7 * TILE_SIZE;
-            enemy2Y[i] = 5 * TILE_SIZE;
-            enemy2Vx[i] = 0f;
-            enemy2Vy[i] = 0f;
-            enemy2Facing[i] = Facing.RIGHT;
-            enemy2DirTimer[i] = 0f;
-            enemy2IsCharging[i] = false;
-            enemy2InvulnT[i] = 0f;
-            enemy2BlinkT[i] = 0f;
-            enemy2AnimFrame[i] = 0;
-            enemy2AnimT[i] = 0f;
+        public void update(float dt) {
+            x += vx * dt;
+            y += vy * dt;
+        }
+    }
+
+    public static class BossBullet {
+        public float x, y, vx, vy;
+
+        public BossBullet(float x, float y, float vx, float vy) {
+            this.x = x;
+            this.y = y;
+            this.vx = vx;
+            this.vy = vy;
         }
 
-        bossBlinkT = 0f;
-        bossAlive = true;
-        bossHp = 10;
-        bossX = 8 * TILE_SIZE;
-        bossY = 4 * TILE_SIZE;
-        bossFacing = Facing.DOWN;
-        bossFloatT = 0f;
-        bossShootT = 0f;
-
-        for (int i = 0; i < MAX_BOSS_BULLETS; i++) bossBulletAlive[i] = false;
-
-        fireEvent(new GameEvent(GameEventType.HUD_CHANGED));
-        fireEvent(new GameEvent(GameEventType.ROOM_CHANGED));
-        fireEvent(new GameEvent(GameEventType.PLAYER_MOVED));
+        public void update(float dt) {
+            x += vx * dt;
+            y += vy * dt;
+        }
     }
 }

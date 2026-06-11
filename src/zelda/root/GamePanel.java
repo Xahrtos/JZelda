@@ -10,6 +10,8 @@ import java.awt.*;
 
 public class GamePanel extends JPanel {
 
+    private static final long serialVersionUID = 1L;
+
     private final int width;
     private final int height;
 
@@ -28,7 +30,7 @@ public class GamePanel extends JPanel {
         setFocusable(true);
         setBackground(Color.BLACK);
 
-        model = new GameModel();              // GameModel parte in TITLE
+        model = new GameModel();
         controller = new GameController(model);
         view = new GameView(model);
 
@@ -51,7 +53,6 @@ public class GamePanel extends JPanel {
         timer = new Timer(16, e -> tick());
         timer.start();
 
-        // prova a prendere focus (keybinds sono WHEN_IN_FOCUSED_WINDOW, ma aiuta comunque)
         requestFocusInWindow();
     }
 
@@ -72,7 +73,6 @@ public class GamePanel extends JPanel {
 
     // -------- Key Bindings --------
     private void setupKeyBinds() {
-        // Manteniamo WHEN_IN_FOCUSED_WINDOW come stai già facendo: è corretto
         InputMap im = getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
         ActionMap am = getActionMap();
 
@@ -88,17 +88,15 @@ public class GamePanel extends JPanel {
         bind(im, am, "D_P", KeyStroke.getKeyStroke("pressed D"), () -> controller.setRight(true));
         bind(im, am, "D_R", KeyStroke.getKeyStroke("released D"), () -> controller.setRight(false));
 
-        
-
         bind(im, am, "E_P", KeyStroke.getKeyStroke("pressed E"), controller::pressInteract);
         bind(im, am, "ESC_P", KeyStroke.getKeyStroke("pressed ESCAPE"), controller::pressEsc);
 
         bind(im, am, "SPACE_P", KeyStroke.getKeyStroke("pressed SPACE"), controller::pressAttack);
 
-        // Retry (Game Over)
+        bind(im, am, "Q_P", KeyStroke.getKeyStroke("pressed Q"), controller::pressArchery);
+
         bind(im, am, "X_P", KeyStroke.getKeyStroke("pressed X"), controller::pressRetry);
 
-        // Start (Title)
         bind(im, am, "ENTER_P", KeyStroke.getKeyStroke("pressed ENTER"), controller::pressStart);
         bind(im, am, "KP_ENTER_P", KeyStroke.getKeyStroke("pressed KP_ENTER"), controller::pressStart);
     }

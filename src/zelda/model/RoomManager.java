@@ -5,6 +5,7 @@ import java.util.List;
 
 public class RoomManager {
 
+    private static RoomManager instance;
     private final List<Room> rooms = new ArrayList<>();
 
     public static final int PLAY_LAST_INDEX = 7;
@@ -13,7 +14,7 @@ public class RoomManager {
     // stanza sotto lo shop (arena)
     public static final int SHOP_ROOM_INDEX = 4;
 
-    public RoomManager() {
+    private RoomManager() {
         rooms.add(makeLinearRoom(0, false, true, false, false));
 
         for (int i = 1; i <= 6; i++) {
@@ -26,6 +27,13 @@ public class RoomManager {
 
         // shop
         rooms.add(makeLinearRoom(8, false, false, false, true));
+    }
+
+    public static RoomManager getInstance() {
+        if (instance == null) {
+            instance = new RoomManager();
+        }
+        return instance;
     }
 
     public Room getRoom(int index) {

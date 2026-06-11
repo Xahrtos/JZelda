@@ -18,10 +18,12 @@ public class Assets {
     public static final int PLAYER_DIRECTIONS = 4;
     public static final int PLAYER_WALK_FRAMES = 2;
     public static final int PLAYER_ATTACK_FRAMES = 2;
+    public static final int PLAYER_ARCHERY_FRAMES = 2;
 
     public static BufferedImage[] playerIdle = new BufferedImage[PLAYER_DIRECTIONS];
     public static BufferedImage[][] playerWalk = new BufferedImage[PLAYER_DIRECTIONS][PLAYER_WALK_FRAMES];
     public static BufferedImage[][] playerAttack = new BufferedImage[PLAYER_DIRECTIONS][PLAYER_ATTACK_FRAMES];
+    public static BufferedImage[][] playerArrow = new BufferedImage[PLAYER_DIRECTIONS][PLAYER_ARCHERY_FRAMES];
 
     public static BufferedImage merchant;
 
@@ -48,6 +50,10 @@ public class Assets {
     // ---- DROPS ----
     public static BufferedImage rupee;
     public static BufferedImage potion;
+
+    // ---- ARROWS ----
+    public static BufferedImage arrowUpDown;
+    public static BufferedImage arrowLR;
 
     // ---- GAME OVER ----
     public static BufferedImage playerDeath;
@@ -104,13 +110,29 @@ public class Assets {
         playerAttack[DIR_RIGHT][0] = mirrorHorizontally(atkL1);
         playerAttack[DIR_RIGHT][1] = mirrorHorizontally(atkL2);
 
+        // ---- ARCHERY ----
+        BufferedImage arrowDown = loadImage("sprites/player_arrowdown.png");
+        BufferedImage arrowUp = loadImage("sprites/player_arrowup.png");
+        BufferedImage arrowLR = loadImage("sprites/player_arrowlr.png");
+
+        playerArrow[DIR_DOWN][0] = arrowDown;
+        playerArrow[DIR_DOWN][1] = arrowDown;
+
+        playerArrow[DIR_UP][0] = arrowUp;
+        playerArrow[DIR_UP][1] = arrowUp;
+
+        playerArrow[DIR_LEFT][0] = arrowLR;
+        playerArrow[DIR_LEFT][1] = arrowLR;
+        playerArrow[DIR_RIGHT][0] = mirrorHorizontally(arrowLR);
+        playerArrow[DIR_RIGHT][1] = mirrorHorizontally(arrowLR);
+
         // ---- MERCHANT ----
         merchant = loadImage("sprites/merchant.png");
 
         // ---- ENEMY 1 ----
         enemy = loadImage("sprites/enemy_1.png");
 
-     // ---- ENEMY 2 (new) ----
+        // ---- ENEMY 2 (new) ----
         enemy2Walk[DIR_DOWN][0] = loadImage("sprites/enemy2_down1.png");
         enemy2Walk[DIR_DOWN][1] = loadImage("sprites/enemy2_down2.png");
 
@@ -146,6 +168,10 @@ public class Assets {
         // ---- DROPS ----
         rupee = loadImage("sprites/rupee.png");
         potion = loadImage("sprites/potion.png");
+
+        // ---- ARROWS ----
+        Assets.arrowUpDown = loadImage("sprites/arrowupdown.png");
+        Assets.arrowLR = loadImage("sprites/arrowlr.png");
 
         // ---- GAME OVER ----
         playerDeath = loadImage("sprites/player_death.png");
